@@ -6,6 +6,8 @@
  *   Host / TV laptop         ->  /host?key=…  (plays songs, approves, skips)
  *
  * Settings (environment variables, all optional):
+ *   PREFERRED_CHANNELS  channels listed first in search results (default "@7clouds";
+ *                     comma list, or "none"). Other channels are listed after them.
  *   YOUTUBE_API_KEY   REQUIRED for song search (free Google API key, YouTube Data API v3)
  *   PORT              default 3000
  *   HOST_KEY          password for the host page (random if unset; printed at start)
@@ -79,11 +81,12 @@ function decodeEntities(s) {
 
 // YouTube Data API v3 search. Needs a free API key (YOUTUBE_API_KEY).
 // Each uncached search costs 100 of the 10,000 daily quota units.
-async function defaultSearch(q, apiKey) {
+async function defaultSearch(q, apiKey, channelId) {
   const params = new URLSearchParams({
     part: 'snippet', type: 'video', maxResults: '20', q, key: apiKey,
     videoEmbeddable: 'true', videoSyndicated: 'true', safeSearch: 'moderate',
   });
+  if (channelId) params.set('channelId', channelId);
   let r;
   try {
     r = await fetch('https://www.googleapis.com/youtube/v3/search?' + params, { signal: AbortSignal.timeout(8000) });
@@ -102,6 +105,24 @@ async function defaultSearch(q, apiKey) {
     }));
 }
 
+// Turns "@7clouds" (or a UC… channel id) into the channel's id and display name.
+async function defaultResolveChannel(handle, apiKey) {
+  if (!apiKey) throw new UserError('Song search is not set up yet. Ask the host.', 503);
+  const p = new URLSearchParams({ part: 'id,snippet', key: apiKey });
+  if (/^UC[\w-]{22}$/.test(handle)) p.set('id', handle);
+  else p.set('forHandle', handle.startsWith('@') ? handle : '@' + handle);
+  let r;
+  try {
+    r = await fetch('https://www.googleapis.com/youtube/v3/channels?' + p, { signal: AbortSignal.timeout(8000) });
+  } catch {
+    throw new UserError("Couldn't reach YouTube right now. Please try again.", 502);
+  }
+  if (!r.ok) throw new UserError("Couldn't look up the karaoke channel right now. Please try again.", 502);
+  const item = ((await r.json()).items || [])[0];
+  if (!item) throw new UserError(`Couldn't find the YouTube channel ${handle}. Ask the host.`, 503);
+  return { id: item.id, title: (item.snippet && item.snippet.title) || '' };
+}
+
 function createApp(opts = {}) {
   const flag = (v) => ['1', 'true', 'yes'].includes(String(v ?? '').toLowerCase());
   const cfg = {
@@ -118,7 +139,29 @@ function createApp(opts = {}) {
   };
   cfg.youtubeApiKey = String(opts.youtubeApiKey || process.env.YOUTUBE_API_KEY || '');
   const fetchMeta = opts.fetchMeta || defaultFetchMeta;
-  const search = opts.search || ((q) => defaultSearch(q, cfg.youtubeApiKey));
+  const rawCh = opts.channels !== undefined ? opts.channels : String(process.env.PREFERRED_CHANNELS ?? process.env.ALLOWED_CHANNELS ?? '@7clouds').split(',');
+  cfg.channels = (Array.isArray(rawCh) ? rawCh : [rawCh])
+    .map((s) => String(s).trim())
+    .filter((s) => s && !/^(any|off|none)$/i.test(s));
+  const resolveChannel = opts.resolveChannel || ((h) => defaultResolveChannel(h, cfg.youtubeApiKey));
+  const resolvedChannels = new Map();
+  async function channelInfo(h) {
+    if (!resolvedChannels.has(h)) resolvedChannels.set(h, await resolveChannel(h));
+    return resolvedChannels.get(h);
+  }
+  const bareName = (h) => h.replace(/^@/, '');
+  async function allowedNames() {
+    const names = new Set();
+    for (const h of cfg.channels) {
+      names.add(bareName(h).toLowerCase());
+      try {
+        const ch = await channelInfo(h);
+        if (ch.title) names.add(ch.title.toLowerCase());
+      } catch { /* the handle itself is the fallback */ }
+    }
+    return names;
+  }
+  const search = opts.search || ((q, channelId) => defaultSearch(q, cfg.youtubeApiKey, channelId));
   const searchEnabled = Boolean(opts.search || cfg.youtubeApiKey);
   const searchCache = new Map();
 
@@ -186,7 +229,7 @@ function createApp(opts = {}) {
     nowPlaying: pub(state.nowPlaying),
     upcoming: upcoming().map(pub),
     review: state.queue.filter((q) => q.status === 'review').map(pub),
-    settings: { maxPerSinger: cfg.maxPerSinger, strict: cfg.strict, searchEnabled },
+    settings: { maxPerSinger: cfg.maxPerSinger, strict: cfg.strict, searchEnabled, channels: cfg.channels.map(bareName) },
   });
 
   // ---------- live updates (server-sent events) ----------
@@ -264,20 +307,42 @@ function createApp(opts = {}) {
     const key = q.toLowerCase();
     let hit = searchCache.get(key);
     if (!hit || Date.now() - hit.at > 10 * 60 * 1000) {
-      hit = { at: Date.now(), raw: await search(`${q} karaoke with lyrics`) };
+      // The preferred channel(s) and a broad search run side by side. If one fails
+      // the other still answers; only both failing is an error.
+      const broad = search(`${q} karaoke with lyrics`);
+      const fromPreferred = Promise.all(cfg.channels.map(async (h) => {
+        const ch = await channelInfo(h);
+        return (await search(`${q} karaoke with lyrics`, ch.id)).map((m) => ({ ...m, fromChannel: true }));
+      }));
+      const [b, p] = await Promise.allSettled([broad, fromPreferred]);
+      if (b.status === 'rejected' && p.status === 'rejected') throw b.reason;
+      const pref = p.status === 'fulfilled' ? p.value.flat() : [];
+      const prefIds = new Set(pref.map((m) => m.videoId));
+      const rest = b.status === 'fulfilled' ? b.value.filter((m) => !prefIds.has(m.videoId)) : [];
+      hit = { at: Date.now(), raw: [...pref, ...rest] };
       searchCache.set(key, hit);
       if (searchCache.size > 200) searchCache.delete(searchCache.keys().next().value);
     }
 
     const taken = new Set(state.queue.map((x) => x.videoId));
     if (state.nowPlaying) taken.add(state.nowPlaying.videoId);
-    const rank = { accept: 0, review: 1 };
-    const results = hit.raw
-      .map((m) => ({ m, v: classify(m, { trusted: cfg.trusted, strict: cfg.strict }) }))
+    // Preferred-channel videos go first and are trusted as-is. Everything else
+    // goes below them and must pass the title filter.
+    const names = cfg.channels.length ? await allowedNames() : new Set();
+    const isPref = (m) => m.fromChannel || names.has(String(m.author).trim().toLowerCase());
+    const rank = (x) =>
+      x.p ? (/karaoke|lyrics/i.test(x.m.title) ? 0 : 1) : x.v.result === 'accept' ? 2 : 3;
+    const sorted = hit.raw
+      .map((m) => {
+        const p = isPref(m);
+        return { m, p, v: p ? { result: 'accept' } : classify(m, { trusted: cfg.trusted, strict: cfg.strict }) };
+      })
       .filter((x) => x.v.result !== 'reject')
-      .sort((a, b) => rank[a.v.result] - rank[b.v.result])
-      .slice(0, 10)
-      .map(({ m, v }) => ({
+      .sort((a, b) => rank(a) - rank(b));
+    const top = sorted.filter((x) => x.p).slice(0, 5);
+    const results = [...top, ...sorted.filter((x) => !x.p).slice(0, 10 - top.length)]
+      .map(({ m, v, p }) => ({
+        preferred: p,
         videoId: m.videoId,
         title: m.title,
         channel: m.author,
@@ -302,8 +367,16 @@ function createApp(opts = {}) {
     }
 
     const meta = await fetchMeta(videoId);
-    const verdict = classify(meta, { trusted: cfg.trusted, strict: cfg.strict });
-    if (verdict.result === 'reject') throw new UserError(verdict.reason, 422);
+    // Preferred channel: added straight away. Any other channel must pass the
+    // karaoke title filter, and unclear ones wait for the host.
+    const names = cfg.channels.length ? await allowedNames() : new Set();
+    let verdict;
+    if (names.has(String(meta.author).trim().toLowerCase())) {
+      verdict = { result: 'accept', reason: 'From the karaoke channel.' };
+    } else {
+      verdict = classify(meta, { trusted: cfg.trusted, strict: cfg.strict });
+      if (verdict.result === 'reject') throw new UserError(verdict.reason, 422);
+    }
 
     // Re-check after the network wait in case a double-tap slipped through.
     if (dup()) throw new UserError('That song is already in the queue.', 409);
@@ -403,7 +476,9 @@ if (require.main === module) {
     console.log('\n  🎤  Karaoke queue is running\n');
     console.log(`  Guests (QR code points here):  ${base}/`);
     console.log(`  Host / TV screen:              ${base}/host?key=${cfg.hostKey}`);
-    console.log(`  Singer-vocals rule:            ${cfg.strict ? 'strict (reject if not stated)' : 'hold unclear ones for host approval'}`);
+    console.log(cfg.channels.length
+      ? `  Listed first (top picks):      ${cfg.channels.join(', ')}  (other channels after, held for OK if unclear)`
+      : `  Singer-vocals rule:            ${cfg.strict ? 'strict (reject if not stated)' : 'hold unclear ones for host approval'}`);
     if (!cfg.youtubeApiKey) {
       console.log('\n  ⚠️  Song search is OFF. Set YOUTUBE_API_KEY (free, from Google Cloud Console →');
       console.log('      enable "YouTube Data API v3" → Credentials → API key) and restart.');

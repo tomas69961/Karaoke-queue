@@ -40,7 +40,7 @@
         <input id="q" type="search" placeholder="Song or artist" class="grow" enterkeyhint="search" autocomplete="off">
         <button class="primary" id="find">Search</button>
       </div>
-      <div class="muted small">Only karaoke videos with lyrics and the singer's voice show up.</div>
+      <div class="muted small" id="hint">Only karaoke videos with lyrics and the singer's voice show up.</div>
     </div>
     <div id="msg" class="msg hidden" role="status"></div>
     <div id="results" style="margin-top:8px"></div>
@@ -106,6 +106,10 @@ function renderResults() {
     const info = document.createElement('div'); info.className = 'grow';
     const t = document.createElement('div'); t.className = 't'; t.textContent = r.title;
     const sub = document.createElement('div'); sub.className = 'muted small'; sub.textContent = r.channel;
+    if (r.preferred) {
+      const p = document.createElement('span'); p.className = 'pill'; p.textContent = 'Top pick';
+      p.style.cssText = 'margin-left:6px;color:var(--green);border-color:var(--green)'; sub.append(p);
+    }
     if (r.status === 'review') {
       const p = document.createElement('span'); p.className = 'pill review'; p.textContent = 'Host will check'; p.style.marginLeft = '6px';
       sub.append(p);
@@ -126,6 +130,10 @@ function renderResults() {
 
 function render(st) {
   last = st;
+  const chs = (st.settings && st.settings.channels) || [];
+  $('#hint').textContent = chs.length
+    ? 'Top picks come from the ' + chs.join(' and ') + ' karaoke channel. Other channels are listed after.'
+    : "Only karaoke videos with lyrics and the singer's voice show up.";
   const np = st.nowPlaying;
   $('#nowCard').classList.toggle('hidden', !np);
   if (np) { $('#nowImg').src = np.thumb; $('#nowTitle').textContent = np.title; $('#nowSinger').textContent = np.singer; }
@@ -155,7 +163,7 @@ async function search() {
     if (!r.ok) { shown = []; renderResults(); return say('bad', j.error || 'Search failed.'); }
     shown = j.results;
     renderResults();
-    if (!shown.length) say('wait', 'No karaoke versions with lyrics and the singer\'s voice found. Try the artist name or a different spelling.');
+    if (!shown.length) say('wait', 'No matching songs found. Try the artist name or a different spelling.');
   } catch {
     say('bad', 'Network problem. Please try again.');
   } finally {

@@ -56,6 +56,11 @@
     transform: translateX(100%); transition: transform .2s; }
   .drawer.open { transform: none; }
   .drawer h3 { font-size: 18px; margin-bottom: 10px; }
+  /* remote mode: a controls-only page for a second phone (never plays video) */
+  body.remote { overflow: auto; background: var(--bg); }
+  body.remote .stage, body.remote .menu-btn, body.remote #closeBtn { display: none; }
+  body.remote .drawer { position: static; transform: none; width: auto; max-width: 560px; margin: 0 auto; border: 0; }
+  body.remote html, html:has(body.remote) { overflow: auto; }
   .drawer .block { margin-bottom: 16px; }
   .label { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
   .actions { display: flex; gap: 6px; flex: none; flex-wrap: wrap; justify-content: flex-end; }
@@ -146,6 +151,8 @@ const $ = (s) => document.querySelector(s);
 
 // host key comes from ?key=… and is remembered for this tab
 const params = new URLSearchParams(location.search);
+const REMOTE = params.get('remote') === '1';
+if (REMOTE) document.body.classList.add('remote');
 let KEY = params.get('key') || sessionStorage.getItem('kq_host') || '';
 if (!KEY) KEY = prompt('Host key:') || '';
 sessionStorage.setItem('kq_host', KEY);
@@ -194,6 +201,7 @@ function armTapFallback(np) {
 }
 
 window.onYouTubeIframeAPIReady = () => {
+  if (REMOTE) return;
   player = new YT.Player('player', {
     width: '100%', height: '100%',
     playerVars: { playsinline: 1, rel: 0, autoplay: 1, fs: 0, iv_load_policy: 3 },
@@ -300,7 +308,10 @@ function render(st) {
 
 $('#start').onclick = () => { started = true; keepAwake(); sync(); render(state); };
 $('#tapBtn').onclick = () => { try { player.playVideo(); } catch {} $('#tapBox').classList.add('hidden'); };
-$('#skip').onclick = () => { next(); $('#drawer').classList.remove('open'); };
+$('#skip').onclick = () => {
+  api('/api/host/next', 'POST', { expectId: state.nowPlaying ? state.nowPlaying.id : null }).catch(() => {});
+  $('#drawer').classList.remove('open');
+};
 $('#menuBtn').onclick = () => $('#drawer').classList.toggle('open');
 $('#closeBtn').onclick = () => $('#drawer').classList.remove('open');
 $('#qrToggle').onclick = () => { sideOn = !sideOn; $('#qrToggle').textContent = sideOn ? 'On' : 'Off'; render(state); };

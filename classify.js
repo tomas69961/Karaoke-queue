@@ -25,19 +25,21 @@ function parseVideoId(input) {
 }
 
 const KARAOKE = /karaoke|sing[\s-]?along/i;
-const BACKING = /\b(backing|backup|background)\s*(vocals?|singers?|vox)\b|\bbvs?\b/i;
-const NO_BACKING = /\b(no|without|minus|w\/o)\s+(the\s+)?((backing|backup|background)\s*(vocals?|singers?|vox)|bvs?)\b/i;
+// Says the original singer's voice is on the track.
+const WITH_SINGER = /\b(lead|guide|original|main)\s+(vocals?|voice|singer)\b|\bwith\s+(the\s+)?(original\s+)?(vocals?|singer|artist)\b|\bvocal\s+guide\b|\bguide\s+track\b|\bsing[\s-]?along\b/i;
+// Says there is no singer, or it is an instrumental backing track.
+const NO_SINGER = /\b(no|without|minus|w\/o)\s+(the\s+)?(lead\s+|main\s+|original\s+|guide\s+)?(vocals?|voice|singer)\b|\binstrumental\b|\bbacking\s+track\b/i;
 const NO_LYRICS = /\b(no|without|minus|w\/o)\s+lyrics\b/i;
 
 /**
  * Decide whether a YouTube video looks like a karaoke track with on-screen
- * lyrics AND backing vocals. YouTube exposes no flag for this, so the check
- * reads the title and channel name:
+ * lyrics AND the original singer's vocals playing along. YouTube exposes no
+ * flag for this, so the check reads the title and channel name:
  *
- *   accept - says karaoke and mentions backing/backup vocals
+ *   accept - says karaoke and mentions lead/guide/original vocals or the singer
  *   review - says karaoke (or comes from a trusted karaoke channel) but never
- *            mentions backing vocals; the host decides (rejected in strict mode)
- *   reject - not karaoke, or explicitly "no backing vocals" / "no lyrics"
+ *            says the singer is on it; the host decides (rejected in strict mode)
+ *   reject - not karaoke, or explicitly an instrumental / "no vocals" / "no lyrics"
  */
 function classify(meta, { trusted = [], strict = false } = {}) {
   const title = String(meta.title || '');
@@ -49,21 +51,21 @@ function classify(meta, { trusted = [], strict = false } = {}) {
   const looksKaraoke = KARAOKE.test(text) || trustedChannel;
 
   if (!looksKaraoke) {
-    return { result: 'reject', reason: "That doesn't look like a karaoke track. Search for the song plus “karaoke with lyrics and backing vocals”." };
+    return { result: 'reject', reason: "That doesn't look like a karaoke track. Search for the song plus “karaoke with lyrics and lead vocals”." };
   }
-  if (NO_BACKING.test(text)) {
-    return { result: 'reject', reason: 'That version has no backing vocals. Please pick one that does.' };
+  if (NO_SINGER.test(text)) {
+    return { result: 'reject', reason: "That version is an instrumental with no singer's voice. Please pick one with lead or guide vocals." };
   }
   if (NO_LYRICS.test(text)) {
     return { result: 'reject', reason: 'That version has no on-screen lyrics. Please pick one that does.' };
   }
-  if (BACKING.test(text)) {
-    return { result: 'accept', reason: 'Karaoke track with backing vocals.' };
+  if (WITH_SINGER.test(text)) {
+    return { result: 'accept', reason: 'Karaoke track with lyrics and the singer’s vocals.' };
   }
   if (strict) {
-    return { result: 'reject', reason: "The title doesn't say it has backing vocals. Look for a version that says “with backing vocals”." };
+    return { result: 'reject', reason: "The title doesn't say the singer's vocals are included. Look for a version that says “with lead vocals”." };
   }
-  return { result: 'review', reason: "The title doesn't say it has backing vocals, so the host will check it." };
+  return { result: 'review', reason: "The title doesn't say the singer's vocals are included, so the host will check it." };
 }
 
 module.exports = { parseVideoId, classify };

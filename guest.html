@@ -40,7 +40,7 @@
         <input id="q" type="search" placeholder="Song or artist" class="grow" enterkeyhint="search" autocomplete="off">
         <button class="primary" id="find">Search</button>
       </div>
-      <div class="muted small">Only karaoke versions with lyrics and backing vocals show up.</div>
+      <div class="muted small">Only karaoke videos with lyrics and the singer's voice show up.</div>
     </div>
     <div id="msg" class="msg hidden" role="status"></div>
     <div id="results" style="margin-top:8px"></div>
@@ -155,7 +155,7 @@ async function search() {
     if (!r.ok) { shown = []; renderResults(); return say('bad', j.error || 'Search failed.'); }
     shown = j.results;
     renderResults();
-    if (!shown.length) say('wait', 'No karaoke versions with lyrics and backing vocals found. Try the artist name or a different spelling.');
+    if (!shown.length) say('wait', 'No karaoke versions with lyrics and the singer\'s voice found. Try the artist name or a different spelling.');
   } catch {
     say('bad', 'Network problem. Please try again.');
   } finally {

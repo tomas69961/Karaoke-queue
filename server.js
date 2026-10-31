@@ -12,7 +12,7 @@
  *   PUBLIC_URL        the address phones should open, e.g. https://karaoke.example.com
  *                     (auto-detected from your wifi address when running locally)
  *   MAX_PER_SINGER    songs one person may have queued at once (default 2)
- *   STRICT            "1" = reject titles that don't mention backing vocals
+ *   STRICT            "1" = reject titles that don't say the singer's vocals are on
  *                     instead of holding them for host approval
  *   TRUSTED_CHANNELS  comma list of karaoke channels treated as karaoke even if
  *                     the title omits the word (default below)
@@ -254,7 +254,7 @@ function createApp(opts = {}) {
     res.type('image/svg+xml').set('Cache-Control', 'no-store').send(svg);
   }));
 
-  // Guests search by song or artist. "karaoke with lyrics and backing vocals" is
+  // Guests search by song or artist. "karaoke with lyrics and lead vocals" is
   // added to every query, and only results that pass the karaoke filter come back.
   app.get('/api/search', rateLimit(30, 60000), wrap(async (req, res) => {
     const q = String(req.query.q || '').replace(/\s+/g, ' ').trim().slice(0, 80);
@@ -264,7 +264,7 @@ function createApp(opts = {}) {
     const key = q.toLowerCase();
     let hit = searchCache.get(key);
     if (!hit || Date.now() - hit.at > 10 * 60 * 1000) {
-      hit = { at: Date.now(), raw: await search(`${q} karaoke with lyrics and backing vocals`) };
+      hit = { at: Date.now(), raw: await search(`${q} karaoke with lyrics and lead vocals`) };
       searchCache.set(key, hit);
       if (searchCache.size > 200) searchCache.delete(searchCache.keys().next().value);
     }
@@ -403,7 +403,7 @@ if (require.main === module) {
     console.log('\n  🎤  Karaoke queue is running\n');
     console.log(`  Guests (QR code points here):  ${base}/`);
     console.log(`  Host / TV screen:              ${base}/host?key=${cfg.hostKey}`);
-    console.log(`  Backing-vocals rule:           ${cfg.strict ? 'strict (reject if not stated)' : 'hold unclear ones for host approval'}`);
+    console.log(`  Singer-vocals rule:            ${cfg.strict ? 'strict (reject if not stated)' : 'hold unclear ones for host approval'}`);
     if (!cfg.youtubeApiKey) {
       console.log('\n  ⚠️  Song search is OFF. Set YOUTUBE_API_KEY (free, from Google Cloud Console →');
       console.log('      enable "YouTube Data API v3" → Credentials → API key) and restart.');

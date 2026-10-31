@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Karaoke Queue</title>
+<link rel="stylesheet" href="/style.css">
+<style>
+  .wrap { max-width: 560px; margin: 0 auto; padding: 18px 16px 60px; display: grid; gap: 14px; }
+  h1 { font-size: 28px; }
+  h1 span { background: linear-gradient(90deg, var(--pink), var(--cyan)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .now { border-color: var(--pink); }
+  .label { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
+  .field { display: grid; gap: 6px; margin-bottom: 14px; }
+  .field label { font-weight: 600; font-size: 14px; }
+  .song button { flex: none; }
+  .song .added { color: var(--green); font-weight: 700; font-size: 14px; flex: none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>🎤 <span>Karaoke Queue</span></h1>
+    <p class="muted" style="margin:6px 0 0">Search for your song, tap Add, and watch the screen for your turn.</p>
+  </header>
+
+  <section class="card now hidden" id="nowCard">
+    <div class="label">Now singing</div>
+    <div class="song"><img id="nowImg" alt=""><div class="grow"><div class="t" id="nowTitle"></div><div class="muted small" id="nowSinger"></div></div></div>
+  </section>
+
+  <section class="card">
+    <div class="field">
+      <label for="name">Your name</label>
+      <input id="name" maxlength="24" placeholder="e.g. Chris" autocomplete="given-name">
+    </div>
+    <div class="field" style="margin-bottom:0">
+      <label for="q">Find your song</label>
+      <div class="row">
+        <input id="q" type="search" placeholder="Song or artist" class="grow" enterkeyhint="search" autocomplete="off">
+        <button class="primary" id="find">Search</button>
+      </div>
+      <div class="muted small">Only karaoke versions with lyrics and backing vocals show up.</div>
+    </div>
+    <div id="msg" class="msg hidden" role="status"></div>
+    <div id="results" style="margin-top:8px"></div>
+  </section>
+
+  <section class="card">
+    <div class="label">Up next</div>
+    <div id="list"></div>
+    <div id="empty" class="muted">Nothing queued yet. Be the first!</div>
+  </section>
+</div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const store = {
+  get(k, d) { try { const v = JSON.parse(localStorage.getItem(k)); return v ?? d; } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+};
+let mine = store.get('kq_mine', {});   // songId -> owner token
+let last = null;
+let shown = [];                        // current search results
+
+$('#name').value = store.get('kq_name', '');
+$('#name').addEventListener('input', () => store.set('kq_name', $('#name').value));
+
+function say(kind, text) {
+  const m = $('#msg');
+  if (!text) { m.className = 'msg hidden'; return; }
+  m.className = 'msg ' + kind;
+  m.textContent = text;
+}
+
+function songRow(s, num) {
+  const row = document.createElement('div');
+  row.className = 'song';
+  if (num != null) { const n = document.createElement('div'); n.className = 'num'; n.textContent = num; row.append(n); }
+  const img = document.createElement('img'); img.src = s.thumb; img.alt = ''; img.loading = 'lazy';
+  const box = document.createElement('div'); box.className = 'grow';
+  const t = document.createElement('div'); t.className = 't'; t.textContent = s.title;
+  const sub = document.createElement('div'); sub.className = 'muted small';
+  sub.textContent = s.singer + (mine[s.id] ? ' (you)' : '');
+  if (s.status === 'review') {
+    const p = document.createElement('span'); p.className = 'pill review'; p.textContent = 'Waiting for host OK'; p.style.marginLeft = '6px';
+    sub.append(p);
+  }
+  box.append(t, sub);
+  row.append(img, box);
+  if (mine[s.id]) {
+    const b = document.createElement('button'); b.className = 'danger'; b.textContent = 'Remove';
+    b.onclick = () => remove(s.id);
+    row.append(b);
+  }
+  return row;
+}
+
+function renderResults() {
+  const box = $('#results');
+  box.replaceChildren();
+  const queued = new Set(last ? [...last.upcoming, ...last.review, ...(last.nowPlaying ? [last.nowPlaying] : [])].map((s) => s.videoId) : []);
+  for (const r of shown) {
+    const row = document.createElement('div'); row.className = 'song';
+    const img = document.createElement('img'); img.src = r.thumb; img.alt = ''; img.loading = 'lazy';
+    const info = document.createElement('div'); info.className = 'grow';
+    const t = document.createElement('div'); t.className = 't'; t.textContent = r.title;
+    const sub = document.createElement('div'); sub.className = 'muted small'; sub.textContent = r.channel;
+    if (r.status === 'review') {
+      const p = document.createElement('span'); p.className = 'pill review'; p.textContent = 'Host will check'; p.style.marginLeft = '6px';
+      sub.append(p);
+    }
+    info.append(t, sub);
+    row.append(img, info);
+    if (r.inQueue || queued.has(r.videoId)) {
+      const a = document.createElement('div'); a.className = 'added'; a.textContent = 'In queue ✓';
+      row.append(a);
+    } else {
+      const b = document.createElement('button'); b.className = 'primary'; b.textContent = 'Add';
+      b.onclick = () => add(r, b);
+      row.append(b);
+    }
+    box.append(row);
+  }
+}
+
+function render(st) {
+  last = st;
+  const np = st.nowPlaying;
+  $('#nowCard').classList.toggle('hidden', !np);
+  if (np) { $('#nowImg').src = np.thumb; $('#nowTitle').textContent = np.title; $('#nowSinger').textContent = np.singer; }
+
+  const list = $('#list');
+  list.replaceChildren();
+  st.upcoming.forEach((s, i) => list.append(songRow(s, i + 1)));
+  st.review.forEach((s) => list.append(songRow(s, null)));
+  $('#empty').classList.toggle('hidden', st.upcoming.length + st.review.length > 0);
+
+  const live = new Set([...st.upcoming, ...st.review].map((s) => s.id));
+  let changed = false;
+  for (const id of Object.keys(mine)) if (!live.has(id) && !(np && np.id === id)) { delete mine[id]; changed = true; }
+  if (changed) store.set('kq_mine', mine);
+
+  if (shown.length) renderResults();
+}
+
+async function search() {
+  const q = $('#q').value.trim();
+  if (q.length < 2) return say('bad', 'Type a song or an artist.');
+  const btn = $('#find'); btn.disabled = true; btn.textContent = 'Searching…';
+  say('', '');
+  try {
+    const r = await fetch('/api/search?q=' + encodeURIComponent(q));
+    const j = await r.json();
+    if (!r.ok) { shown = []; renderResults(); return say('bad', j.error || 'Search failed.'); }
+    shown = j.results;
+    renderResults();
+    if (!shown.length) say('wait', 'No karaoke versions with lyrics and backing vocals found. Try the artist name or a different spelling.');
+  } catch {
+    say('bad', 'Network problem. Please try again.');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Search';
+  }
+}
+
+async function add(item, btn) {
+  const singer = $('#name').value.trim();
+  if (!singer) { $('#name').focus(); return say('bad', 'Please enter your name first.'); }
+  btn.disabled = true; btn.textContent = 'Adding…';
+  try {
+    const r = await fetch('/api/queue', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ singer, videoId: item.videoId }) });
+    const j = await r.json();
+    if (!r.ok) { btn.disabled = false; btn.textContent = 'Add'; return say('bad', j.error || 'Could not add that song.'); }
+    mine[j.item.id] = j.token; store.set('kq_mine', mine);
+    say(j.item.status === 'review' ? 'wait' : 'ok',
+        j.item.status === 'review' ? `Added “${j.item.title}”. ${j.message}` : `You're in! “${j.item.title}” is in the queue.`);
+    item.inQueue = true;
+    refresh();
+  } catch {
+    btn.disabled = false; btn.textContent = 'Add';
+    say('bad', 'Network problem. Please try again.');
+  }
+}
+
+async function remove(id) {
+  try {
+    await fetch('/api/queue/' + id, { method: 'DELETE', headers: { 'x-owner-token': mine[id] || '' } });
+  } catch {}
+  refresh();
+}
+
+async function refresh() {
+  try { render(await (await fetch('/api/state')).json()); } catch {}
+}
+
+$('#find').onclick = search;
+$('#q').addEventListener('keydown', (e) => { if (e.key === 'Enter') search(); });
+
+refresh();
+try {
+  const es = new EventSource('/api/events');
+  es.onmessage = (e) => render(JSON.parse(e.data));
+} catch {}
+setInterval(refresh, 20000);   // safety net if the live stream drops
+</script>
+</body>
+</html>

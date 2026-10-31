@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: karaoke-queue
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: YOUTUBE_API_KEY
+        sync: false
+      - key: HOST_KEY
+        sync: false

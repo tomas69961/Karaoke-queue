@@ -254,7 +254,7 @@ function createApp(opts = {}) {
     res.type('image/svg+xml').set('Cache-Control', 'no-store').send(svg);
   }));
 
-  // Guests search by song or artist. "karaoke with lyrics and lead vocals" is
+  // Guests search by song or artist. "karaoke with lyrics" is
   // added to every query, and only results that pass the karaoke filter come back.
   app.get('/api/search', rateLimit(30, 60000), wrap(async (req, res) => {
     const q = String(req.query.q || '').replace(/\s+/g, ' ').trim().slice(0, 80);
@@ -264,7 +264,7 @@ function createApp(opts = {}) {
     const key = q.toLowerCase();
     let hit = searchCache.get(key);
     if (!hit || Date.now() - hit.at > 10 * 60 * 1000) {
-      hit = { at: Date.now(), raw: await search(`${q} karaoke with lyrics and lead vocals`) };
+      hit = { at: Date.now(), raw: await search(`${q} karaoke with lyrics`) };
       searchCache.set(key, hit);
       if (searchCache.size > 200) searchCache.delete(searchCache.keys().next().value);
     }

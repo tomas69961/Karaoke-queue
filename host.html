@@ -95,6 +95,7 @@
         <h2>Scan to add your song</h2>
         <img class="qr" id="bigQr" src="/qr.svg" alt="QR code to join the queue">
         <p class="muted">or go to <b id="joinText"></b></p>
+        <p class="muted" id="rouletteNote" style="margin-top:1.4vmin"></p>
       </div>
     </div>
 
@@ -121,7 +122,7 @@
     <div class="label">Now singing</div>
     <div style="font-weight:700" id="nowTitle"></div>
     <div class="muted small" id="nowSinger" style="margin-bottom:8px"></div>
-    <button class="danger" id="skip">Skip song</button>
+    <button class="danger hidden" id="skip">Skip song</button>
   </div>
 
   <div class="block hidden" id="reviewBlock">
@@ -140,6 +141,8 @@
     <code id="joinText2"></code>
     <div class="row" style="margin-top:10px"><label class="grow small">Show the queue beside the video on the TV</label>
       <button id="qrToggle">On</button></div>
+    <div class="row" style="margin-top:10px"><label class="grow small">Roulette: play popular songs when the queue is empty</label>
+      <button id="rouletteToggle">On</button></div>
   </div>
 </aside>
 
@@ -160,6 +163,7 @@ sessionStorage.setItem('kq_host', KEY);
 let state = { nowPlaying: null, upcoming: [], review: [], settings: {} };
 let player = null, ready = false, started = false, currentId = null, advancing = false;
 let sideOn = true, playTimer = null, wakeLock = null;
+let rouletteOn = true, rouletteTimer = null, rouletteTick = null, rouletteRetryAt = 0;
 const firstSeen = new Map();
 let sideInit = false;
 
@@ -216,6 +220,35 @@ window.onYouTubeIframeAPIReady = () => {
   });
 };
 
+function cancelRoulette() {
+  clearTimeout(rouletteTimer); clearInterval(rouletteTick);
+  rouletteTimer = rouletteTick = null;
+  $('#rouletteNote').textContent = '';
+}
+
+// Nothing queued: after a short pause, ask the server for a roulette song.
+function armRoulette() {
+  const rs = state.settings && state.settings.roulette;
+  if (!rouletteOn || !rs || !rs.enabled || rouletteTimer || Date.now() < rouletteRetryAt) return;
+  let left = 15;
+  const label = () => {
+    $('#rouletteNote').textContent = `🎲 Karaoke roulette in ${left}s (${rs.genre ? rs.genre + ' songs' : 'popular songs'}). Add a song to skip it.`;
+  };
+  label();
+  rouletteTick = setInterval(() => { left = Math.max(0, left - 1); label(); }, 1000);
+  rouletteTimer = setTimeout(async () => {
+    cancelRoulette();
+    try {
+      const r = await api('/api/host/roulette');
+      if (r && r.error) throw new Error(r.error);
+    } catch (e) {
+      rouletteRetryAt = Date.now() + 60000;
+      toast('Roulette could not pick a song. Trying again in a minute.');
+      setTimeout(sync, 61000);
+    }
+  }, 15000);
+}
+
 function sync() {
   const np = state.nowPlaying;
   $('#startBox').classList.toggle('hidden', started);
@@ -225,11 +258,12 @@ function sync() {
   $('#cornerQr').classList.toggle('hidden', !(started && np && !sideOn));
   if (!started || !ready) return;
   if (np) {
+    cancelRoulette();
     if (currentId !== np.id) { currentId = np.id; player.loadVideoById(np.videoId); armTapFallback(np); }
   } else {
     clearTimeout(playTimer); $('#tapBox').classList.add('hidden');
     if (currentId) { currentId = null; try { player.stopVideo(); } catch {} }
-    if (state.upcoming.length) next();
+    if (state.upcoming.length) { cancelRoulette(); next(); } else armRoulette();
   }
 }
 
@@ -279,6 +313,9 @@ function render(st) {
   const np = st.nowPlaying;
   $('#nowBlock').classList.toggle('hidden', !np);
   if (np) { $('#nowTitle').textContent = np.title; $('#nowSinger').textContent = np.singer; }
+  $('#skip').classList.toggle('hidden', !np);
+  if (armedFor && (!np || np.id !== armedFor)) disarmSkip();
+  if (!armedFor) $('#skip').textContent = np && np.roulette ? 'Skip roulette song' : 'Skip song';
 
   // one-line strip along the bottom of the TV picture
   const tk = $('#ticker');
@@ -289,6 +326,9 @@ function render(st) {
 
   const list = $('#list'); list.replaceChildren();
   st.upcoming.forEach((s, i) => list.append(rowFor(s, i + 1, [
+    ...(i === 0 && st.upcoming.length > 1
+      ? [['Skip for now', '', () => api('/api/host/defer/' + s.id).then((r) => { if (r && r.error) toast(r.error); })]]
+      : []),
     ...(i > 0 ? [['Play next', '', () => api('/api/host/playnext/' + s.id)]] : []),
     ['Remove', 'danger', () => api('/api/queue/' + s.id, 'DELETE')],
   ])));
@@ -308,9 +348,34 @@ function render(st) {
 
 $('#start').onclick = () => { started = true; keepAwake(); sync(); render(state); };
 $('#tapBtn').onclick = () => { try { player.playVideo(); } catch {} $('#tapBox').classList.add('hidden'); };
+// Skipping a roulette song is one tap. Skipping a guest's song asks for a second
+// tap, so a stray touch can't cut someone off in the middle of their song.
+let armedFor = null, armTimer = null;
+function disarmSkip() {
+  clearTimeout(armTimer);
+  armedFor = null;
+  const np = state.nowPlaying;
+  $('#skip').textContent = np && np.roulette ? 'Skip roulette song' : 'Skip song';
+}
 $('#skip').onclick = () => {
-  api('/api/host/next', 'POST', { expectId: state.nowPlaying ? state.nowPlaying.id : null }).catch(() => {});
+  const np = state.nowPlaying;
+  if (!np) return;
+  if (!np.roulette && armedFor !== np.id) {
+    armedFor = np.id;
+    $('#skip').textContent = `Tap again to skip ${np.singer}'s song`;
+    armTimer = setTimeout(disarmSkip, 4000);
+    return;
+  }
+  disarmSkip();
+  api('/api/host/next', 'POST', { expectId: np.id, skip: true })
+    .then((r) => { if (r && r.error) toast(r.error); })
+    .catch(() => {});
   $('#drawer').classList.remove('open');
+};
+$('#rouletteToggle').onclick = () => {
+  rouletteOn = !rouletteOn;
+  $('#rouletteToggle').textContent = rouletteOn ? 'On' : 'Off';
+  if (rouletteOn) sync(); else cancelRoulette();
 };
 $('#menuBtn').onclick = () => $('#drawer').classList.toggle('open');
 $('#closeBtn').onclick = () => $('#drawer').classList.remove('open');

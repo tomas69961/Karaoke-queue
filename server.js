@@ -8,6 +8,8 @@
  * Settings (environment variables, all optional):
  *   PREFERRED_CHANNELS  channels listed first in search results (default "@7clouds";
  *                     comma list, or "none"). Other channels are listed after them.
+ *   ROULETTE          "0" turns off karaoke roulette (auto-play of popular songs from the
+ *                     first preferred channel when the queue is empty; default on)
  *   YOUTUBE_API_KEY   REQUIRED for song search (free Google API key, YouTube Data API v3)
  *   PORT              default 3000
  *   HOST_KEY          password for the host page (random if unset; printed at start)
@@ -25,7 +27,7 @@ const os = require('os');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const { classify, parseVideoId } = require('./classify');
+const { classify, parseVideoId, inferGenre } = require('./classify');
 
 class UserError extends Error {
   constructor(message, status = 400) {
@@ -81,12 +83,13 @@ function decodeEntities(s) {
 
 // YouTube Data API v3 search. Needs a free API key (YOUTUBE_API_KEY).
 // Each uncached search costs 100 of the 10,000 daily quota units.
-async function defaultSearch(q, apiKey, channelId) {
+async function defaultSearch(q, apiKey, channelId, order) {
   const params = new URLSearchParams({
     part: 'snippet', type: 'video', maxResults: '20', q, key: apiKey,
     videoEmbeddable: 'true', videoSyndicated: 'true', safeSearch: 'moderate',
   });
   if (channelId) params.set('channelId', channelId);
+  if (order) params.set('order', order);
   let r;
   try {
     r = await fetch('https://www.googleapis.com/youtube/v3/search?' + params, { signal: AbortSignal.timeout(8000) });
@@ -121,6 +124,24 @@ async function defaultResolveChannel(handle, apiKey) {
   const item = ((await r.json()).items || [])[0];
   if (!item) throw new UserError(`Couldn't find the YouTube channel ${handle}. Ask the host.`, 503);
   return { id: item.id, title: (item.snippet && item.snippet.title) || '' };
+}
+
+// Best-effort genre for one video (1 quota unit). Returns null when YouTube gives no clue.
+async function defaultLookupGenre(videoId, apiKey) {
+  if (!apiKey) return null;
+  const p = new URLSearchParams({ part: 'snippet,topicDetails', id: videoId, key: apiKey });
+  try {
+    const r = await fetch('https://www.googleapis.com/youtube/v3/videos?' + p, { signal: AbortSignal.timeout(4000) });
+    if (!r.ok) return null;
+    const it = ((await r.json()).items || [])[0];
+    if (!it) return null;
+    return inferGenre({
+      topics: (it.topicDetails && it.topicDetails.topicCategories) || [],
+      tags: (it.snippet && it.snippet.tags) || [],
+    });
+  } catch {
+    return null;
+  }
 }
 
 function createApp(opts = {}) {
@@ -161,18 +182,23 @@ function createApp(opts = {}) {
     }
     return names;
   }
-  const search = opts.search || ((q, channelId) => defaultSearch(q, cfg.youtubeApiKey, channelId));
+  const search = opts.search || ((q, channelId, order) => defaultSearch(q, cfg.youtubeApiKey, channelId, order));
   const searchEnabled = Boolean(opts.search || cfg.youtubeApiKey);
   const searchCache = new Map();
+  const roulettePools = new Map();
+  const lookupGenre = opts.lookupGenre || ((id) => defaultLookupGenre(id, cfg.youtubeApiKey));
+  const random = opts.random || Math.random;
+  cfg.roulette = !['0', 'false', 'off', 'no'].includes(String(opts.roulette ?? process.env.ROULETTE ?? '1').toLowerCase());
 
   // ---------- state ----------
-  const state = { queue: [], nowPlaying: null, history: [] };
+  const state = { queue: [], nowPlaying: null, history: [], genreCounts: {} };
 
   if (cfg.dataFile) {
     try {
       const s = JSON.parse(fs.readFileSync(cfg.dataFile, 'utf8'));
       state.queue = s.queue || [];
       state.history = s.history || [];
+      state.genreCounts = s.genreCounts || {};
       if (s.nowPlaying) state.queue.unshift({ ...s.nowPlaying, status: 'queued', playNext: true });
     } catch {
       /* first run */
@@ -221,6 +247,7 @@ function createApp(opts = {}) {
       channel: q.channel,
       singer: q.singer,
       status: q.status,
+      roulette: !!q.roulette,
       thumb: `https://i.ytimg.com/vi/${q.videoId}/mqdefault.jpg`,
       startedAt: q.startedAt || null,
     };
@@ -229,7 +256,8 @@ function createApp(opts = {}) {
     nowPlaying: pub(state.nowPlaying),
     upcoming: upcoming().map(pub),
     review: state.queue.filter((q) => q.status === 'review').map(pub),
-    settings: { maxPerSinger: cfg.maxPerSinger, strict: cfg.strict, searchEnabled, channels: cfg.channels.map(bareName) },
+    settings: { maxPerSinger: cfg.maxPerSinger, strict: cfg.strict, searchEnabled, channels: cfg.channels.map(bareName),
+      roulette: { enabled: cfg.roulette && cfg.channels.length > 0, genre: topGenre() } },
   });
 
   // ---------- live updates (server-sent events) ----------
@@ -378,6 +406,9 @@ function createApp(opts = {}) {
       if (verdict.result === 'reject') throw new UserError(verdict.reason, 422);
     }
 
+    let genre = null;
+    try { genre = (await lookupGenre(videoId)) || null; } catch { /* genre is optional */ }
+
     // Re-check after the network wait in case a double-tap slipped through.
     if (dup()) throw new UserError('That song is already in the queue.', 409);
     if (mineCount() >= cfg.maxPerSinger) throw new UserError(`You can have ${cfg.maxPerSinger} songs in the queue at once.`, 429);
@@ -392,6 +423,7 @@ function createApp(opts = {}) {
       status: verdict.result === 'accept' ? 'queued' : 'review',
       addedAt: Date.now(),
       playNext: false,
+      genre,
     };
     state.queue.push(item);
     changed();
@@ -427,6 +459,7 @@ function createApp(opts = {}) {
       state.queue = state.queue.filter((q) => q !== next);
       next.startedAt = Date.now();
       state.nowPlaying = next;
+      if (next.genre) state.genreCounts[next.genre] = (state.genreCounts[next.genre] || 0) + 1;
     } else {
       state.nowPlaying = null;
     }
@@ -442,6 +475,20 @@ function createApp(opts = {}) {
     res.json({ ok: true });
   });
 
+  // "Skip for now": the first song waiting is moved back one place, so the song
+  // after it plays next. The skipped song stays in line right behind it.
+  app.post('/api/host/defer/:id', requireHost, (req, res) => {
+    const [first, second] = upcoming();
+    if (!first || first.id !== req.params.id) {
+      return res.status(409).json({ error: 'That song is no longer the next one up.' });
+    }
+    if (!second) return res.status(409).json({ error: 'There is no song after it to move up.' });
+    second.playNext = true;
+    second.playNextAt = first.playNext ? (first.playNextAt || 0) - 1 : Date.now();
+    changed();
+    res.json({ ok: true });
+  });
+
   app.post('/api/host/playnext/:id', requireHost, (req, res) => {
     const q = state.queue.find((x) => x.id === req.params.id && x.status === 'queued');
     if (!q) return res.status(404).json({ error: 'Song not found.' });
@@ -452,6 +499,64 @@ function createApp(opts = {}) {
   });
 
   // ---------- pages ----------
+  // ---------- karaoke roulette ----------
+  // When nothing is queued, play a popular song from the first preferred channel,
+  // in the genre of what the room has sung most (or just the most-viewed songs).
+  function topGenre() {
+    const top = Object.entries(state.genreCounts || {}).sort((a, b) => b[1] - a[1])[0];
+    return top ? top[0] : null;
+  }
+
+  async function roulettePick() {
+    if (!cfg.channels.length) throw new UserError('Roulette needs a preferred channel to pull songs from.', 503);
+    const genre = topGenre();
+    const key = genre || '*';
+    let pool = roulettePools.get(key);
+    if (!pool || Date.now() - pool.at > 6 * 60 * 60 * 1000) {
+      const ch = await channelInfo(cfg.channels[0]);
+      let raw = await search(`${genre ? genre + ' ' : ''}karaoke with lyrics`, ch.id, 'viewCount');
+      if (!raw.length && genre) raw = await search('karaoke with lyrics', ch.id, 'viewCount');
+      const karaokeTitled = raw.filter((m) => /karaoke|lyrics/i.test(m.title));
+      pool = { at: Date.now(), list: karaokeTitled.length >= 5 ? karaokeTitled : raw };
+      roulettePools.set(key, pool);
+    }
+    const recent = new Set([
+      ...state.history.map((h) => h.videoId),
+      ...state.queue.map((q) => q.videoId),
+      ...(state.nowPlaying ? [state.nowPlaying.videoId] : []),
+    ]);
+    let candidates = pool.list.filter((m) => !recent.has(m.videoId));
+    if (!candidates.length) candidates = pool.list;       // heard them all: allow repeats
+    if (!candidates.length) throw new UserError('Roulette could not find a song right now.', 503);
+    const top = candidates.slice(0, 12);                  // most-viewed first
+    const m = top[Math.min(top.length - 1, Math.floor(random() * top.length))];
+    return {
+      id: crypto.randomBytes(5).toString('hex'),
+      token: crypto.randomBytes(12).toString('hex'),
+      videoId: m.videoId,
+      title: String(m.title).slice(0, 200),
+      channel: String(m.author).slice(0, 100),
+      singer: '🎲 Roulette',
+      status: 'queued',
+      addedAt: Date.now(),
+      playNext: false,
+      roulette: true,
+      genre: null,      // roulette plays never count toward the genre tally
+    };
+  }
+
+  app.post('/api/host/roulette', requireHost, wrap(async (req, res) => {
+    if (!cfg.roulette) throw new UserError('Roulette is turned off.', 403);
+    if (state.nowPlaying || upcoming().length) return res.json(view());
+    const item = await roulettePick();
+    // someone may have added a song while we were looking one up
+    if (state.nowPlaying || upcoming().length) return res.json(view());
+    item.startedAt = Date.now();
+    state.nowPlaying = item;
+    changed();
+    res.json(view());
+  }));
+
   // Only these three files are served; nothing else in the folder is exposed.
   const page = (f) => (req, res) => res.sendFile(path.join(__dirname, f));
   app.get('/', page('guest.html'));

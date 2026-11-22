@@ -1,7 +1,7 @@
 {
   "name": "karaoke-queue",
   "version": "1.0.0",
-  "description": "Scan-a-QR karaoke queue that only accepts YouTube karaoke tracks with lyrics and backing vocals",
+  "description": "Scan-a-QR karaoke queue that only accepts YouTube karaoke tracks with lyrics and the singer's vocals",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

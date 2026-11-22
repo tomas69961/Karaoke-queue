@@ -12,28 +12,30 @@
   .stage { position: fixed; inset: 0; display: grid; place-items: center; background: #000; }
   .screen { position: relative; width: min(100vw, calc(100dvh * 16 / 9)); aspect-ratio: 16 / 9; background: #000; display: flex; }
   .vwrap { position: relative; flex: 1 1 0; min-width: 0; display: grid; place-items: center; }
-  .vbox { position: relative; width: 100%; aspect-ratio: 16 / 9; }
+  .vbox { position: relative; width: 100%; aspect-ratio: 16 / 9; max-height: 100%; }
   #player, #player iframe { position: absolute; inset: 0; width: 100%; height: 100%; }
 
-  /* queue panel beside the video, so guests see their song land on the TV */
-  .side { flex: none; width: 27%; display: flex; flex-direction: column; gap: 1.4vmin; padding: 1.8vmin; overflow: hidden;
-    background: #120a1f; border-left: 1px solid var(--line); font-size: clamp(10px, 2.1vmin, 24px); }
-  .s-label { font-size: .7em; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
-  .s-now { padding: 1vmin 1.2vmin; border: 1px solid var(--pink); border-radius: 1vmin; display: grid; gap: .3vmin; }
-  .s-now b { font-size: 1.15em; }
-  .s-now span { color: var(--muted); font-size: .85em; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  /* narrow strip on the far right: current singer + next 3, so the video stays as big as possible */
+  .side { flex: none; width: 15%; min-width: 150px; display: flex; flex-direction: column; gap: 1.1vmin; padding: 1.2vmin; overflow: hidden;
+    background: #120a1f; border-left: 1px solid var(--line); font-size: clamp(9px, 1.7vmin, 20px); }
+  .s-label { font-size: .75em; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+  .s-now { padding: 1vmin; border: 1px solid var(--pink); border-radius: 1vmin; display: grid; gap: .3vmin; }
+  .s-now b { font-size: 1.15em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .s-now span { color: var(--muted); font-size: .9em; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .s-list { flex: 1; min-height: 0; overflow: hidden; display: grid; align-content: start; gap: .8vmin; }
-  .qrow { display: flex; gap: 1vmin; align-items: baseline; padding: .8vmin 1vmin; border-radius: 1vmin; background: #1d1230; }
-  .qrow.pending { opacity: .6; }
+  .qrow { display: flex; gap: .8vmin; align-items: baseline; padding: .7vmin .8vmin; border-radius: 1vmin; background: #1d1230; }
+  .qrow.dice { border: 1px dashed var(--cyan); }
   .qrow.new { animation: pop 4s ease-out; }
   @keyframes pop { 0% { background: var(--pink); transform: scale(1.04); } 100% { background: #1d1230; transform: none; } }
-  .qn { width: 1.6em; text-align: center; color: var(--muted); font-weight: 700; flex: none; }
+  .qn { width: 1.3em; text-align: center; color: var(--muted); font-weight: 700; flex: none; }
   .qt { min-width: 0; display: grid; }
   .qt b, .qt span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .qt span { color: var(--muted); font-size: .85em; }
-  .qmore, .qempty { color: var(--muted); text-align: center; padding: .6vmin; }
-  .s-foot { display: grid; justify-items: center; gap: .8vmin; text-align: center; color: var(--muted); font-size: .85em; }
-  .s-foot img { width: min(70%, 17vmin); background: #fff; border-radius: 1vmin; padding: .6vmin; }
+  .qt span { color: var(--muted); font-size: .88em; }
+  .qempty { color: var(--muted); text-align: center; padding: .6vmin; }
+  .s-foot { display: grid; justify-items: center; gap: .6vmin; text-align: center; color: var(--muted); font-size: .85em; }
+  .s-foot img { width: min(80%, 13vmin); background: #fff; border-radius: 1vmin; padding: .5vmin; }
+  .paused-badge { position: absolute; top: 2%; left: 2%; z-index: 2; background: #000a; border: 1px solid var(--amber); color: var(--amber);
+    padding: .8vmin 1.6vmin; border-radius: 1vmin; font-size: clamp(12px, 2.4vmin, 26px); font-weight: 700; }
 
   .overlay { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; padding: 3%;
     background: radial-gradient(900px 500px at 70% 0%, #3b1670, #120a1f); z-index: 3; }
@@ -41,6 +43,18 @@
   .overlay .qr { width: min(46vmin, 60%); background: #fff; border-radius: 2vmin; padding: 1.2vmin; margin: 1vmin 0; }
   .overlay p { margin: 0; font-size: clamp(13px, 2.6vmin, 26px); }
   .big { font-size: clamp(16px, 3vmin, 28px); padding: 1.6vmin 3.4vmin; }
+
+  /* the 10-second break between songs */
+  #breakBox { display: grid; gap: 2vmin; justify-items: center; width: 100%; }
+  .b-label { font-size: clamp(12px, 2.2vmin, 24px); letter-spacing: .14em; text-transform: uppercase; color: var(--cyan); }
+  .b-head { font-size: clamp(20px, 4.6vmin, 52px); font-weight: 800; line-height: 1.15; max-width: 90%; }
+  .b-song { display: flex; gap: 2vmin; align-items: center; background: #1d1230; border: 1px solid var(--pink); border-radius: 2vmin; padding: 1.4vmin 2vmin; max-width: 88%; }
+  .b-song img { width: 16vmin; border-radius: 1vmin; }
+  .b-song b { font-size: clamp(14px, 3vmin, 32px); text-align: left; }
+  .b-tease { font-size: clamp(14px, 2.9vmin, 30px); color: var(--amber); max-width: 86%; }
+  .b-count { font-size: clamp(30px, 9vmin, 100px); font-weight: 900; background: linear-gradient(90deg, var(--pink), var(--cyan)); -webkit-background-clip: text; background-clip: text; color: transparent; line-height: 1; }
+  .b-foot { display: flex; align-items: center; gap: 2vmin; color: var(--muted); font-size: clamp(11px, 2.2vmin, 22px); }
+  .b-foot img { width: 11vmin; background: #fff; border-radius: 1vmin; padding: .5vmin; }
 
   .tap { position: absolute; inset: 0; z-index: 4; display: grid; place-items: center; background: #000c; text-align: center; padding: 4%; }
   .tap div { font-size: clamp(14px, 3vmin, 26px); margin-bottom: 1.6vmin; }
@@ -51,7 +65,7 @@
   .ticker { position: absolute; left: 0; right: 0; bottom: 0; z-index: 2; padding: .6vmin 2% .8vmin; font-size: clamp(11px, 2.2vmin, 22px);
     background: linear-gradient(transparent, #000b); color: #fff; pointer-events: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-  .drawer { position: fixed; top: 0; bottom: 0; right: 0; width: min(440px, 100vw); z-index: 30; background: var(--bg);
+  .drawer { position: fixed; top: 0; bottom: 0; right: 0; width: min(460px, 100vw); z-index: 30; background: var(--bg);
     border-left: 1px solid var(--line); padding: max(12px, env(safe-area-inset-top)) 14px 24px; overflow: auto;
     transform: translateX(100%); transition: transform .2s; }
   .drawer.open { transform: none; }
@@ -61,11 +75,13 @@
   body.remote .stage, body.remote .menu-btn, body.remote #closeBtn { display: none; }
   body.remote .drawer { position: static; transform: none; width: auto; max-width: 560px; margin: 0 auto; border: 0; }
   body.remote html, html:has(body.remote) { overflow: auto; }
-  .drawer .block { margin-bottom: 16px; }
+  .drawer .block { margin-bottom: 18px; }
   .label { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
   .actions { display: flex; gap: 6px; flex: none; flex-wrap: wrap; justify-content: flex-end; }
   .actions button { padding: 8px 10px; font-size: 13px; }
   .song img { width: 64px; height: 36px; }
+  .ctl { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+  .ctl button { padding: 12px 8px; }
   code { background: #0e0718; padding: 2px 6px; border-radius: 6px; word-break: break-all; }
 </style>
 </head>
@@ -77,13 +93,14 @@
     <div class="side hidden" id="side">
       <div class="s-label">Now singing</div>
       <div class="s-now"><b id="sideSinger"></b><span id="sideTitle"></span></div>
-      <div class="s-label">Up next</div>
+      <div class="s-label">Next up</div>
       <div class="s-list" id="sideList"></div>
       <div class="s-foot"><img src="/qr.svg" alt=""><span>Scan to add your song</span></div>
     </div>
 
     <img class="corner-qr hidden" id="cornerQr" src="/qr.svg" alt="">
     <div class="ticker hidden" id="ticker"></div>
+    <div class="paused-badge hidden" id="pausedBadge">⏸ Paused</div>
 
     <div class="overlay" id="overlay">
       <div id="startBox">
@@ -91,11 +108,18 @@
         <p class="muted" style="margin-bottom:2vmin">Turn your phone sideways, then tap once to start.</p>
         <button class="primary big" id="start">Start karaoke</button>
       </div>
+      <div id="breakBox" class="hidden">
+        <div class="b-label">Coming up</div>
+        <div class="b-head" id="bHead"></div>
+        <div class="b-song"><img id="bImg" alt=""><b id="bSong"></b></div>
+        <div class="b-tease" id="bTease"></div>
+        <div class="b-count" id="bCount"></div>
+        <div class="b-foot"><img src="/qr.svg" alt=""><span>Scan to add your song or claim the roulette pick</span></div>
+      </div>
       <div id="idleBox" class="hidden">
         <h2>Scan to add your song</h2>
         <img class="qr" id="bigQr" src="/qr.svg" alt="QR code to join the queue">
         <p class="muted">or go to <b id="joinText"></b></p>
-        <p class="muted" id="rouletteNote" style="margin-top:1.4vmin"></p>
       </div>
     </div>
 
@@ -121,13 +145,17 @@
   <div class="block hidden" id="nowBlock">
     <div class="label">Now singing</div>
     <div style="font-weight:700" id="nowTitle"></div>
-    <div class="muted small" id="nowSinger" style="margin-bottom:8px"></div>
-    <button class="danger hidden" id="skip">Skip song</button>
+    <div class="muted small" id="nowSinger"></div>
+    <div class="ctl">
+      <button id="pauseBtn">⏸ Pause</button>
+      <button id="restartBtn">⏮ Restart song</button>
+      <button class="danger" id="skip" style="grid-column: 1 / -1">Skip song</button>
+    </div>
   </div>
-
-  <div class="block hidden" id="reviewBlock">
-    <div class="label">Needs your OK (can't tell the singer's voice is on it)</div>
-    <div id="reviewList"></div>
+  <div class="block hidden" id="breakBlock">
+    <div class="label">Break</div>
+    <div class="small muted" id="breakInfo"></div>
+    <div class="ctl"><button class="primary" id="startNow" style="grid-column: 1 / -1">▶ Start next song now</button></div>
   </div>
 
   <div class="block">
@@ -137,12 +165,36 @@
   </div>
 
   <div class="block">
+    <div class="label">🎲 Roulette</div>
+    <div id="rouletteRow"></div>
+    <div class="row" style="margin-top:8px">
+      <button id="shuffle" class="grow">Shuffle pick</button>
+      <button id="rouletteToggle">On</button>
+    </div>
+  </div>
+
+  <div class="block">
+    <div class="label">Suggestions for this room</div>
+    <div class="muted small" id="recHint" style="margin-bottom:6px"></div>
+    <div id="recs"></div>
+  </div>
+
+  <div class="block">
+    <div class="label">Search YouTube karaoke</div>
+    <div class="clr"><input id="hq" placeholder="Any song, artist, channel or words" enterkeyhint="search" autocomplete="off"><button class="x hidden" id="hqx" aria-label="Clear">✕</button></div>
+    <div class="row" style="margin-top:8px">
+      <input id="hsinger" maxlength="24" placeholder="Singer name (blank = open mic)" class="grow">
+      <button class="primary" id="hfind">Search</button>
+    </div>
+    <div id="hmsg" class="msg hidden"></div>
+    <div id="hres" style="margin-top:6px"></div>
+  </div>
+
+  <div class="block">
     <div class="label">Guests join at</div>
     <code id="joinText2"></code>
     <div class="row" style="margin-top:10px"><label class="grow small">Show the queue beside the video on the TV</label>
       <button id="qrToggle">On</button></div>
-    <div class="row" style="margin-top:10px"><label class="grow small">Roulette: play popular songs when the queue is empty</label>
-      <button id="rouletteToggle">On</button></div>
   </div>
 </aside>
 
@@ -160,10 +212,10 @@ let KEY = params.get('key') || sessionStorage.getItem('kq_host') || '';
 if (!KEY) KEY = prompt('Host key:') || '';
 sessionStorage.setItem('kq_host', KEY);
 
-let state = { nowPlaying: null, upcoming: [], review: [], settings: {} };
+let state = { nowPlaying: null, upcoming: [], roulettePick: null, break: null, settings: {} };
 let player = null, ready = false, started = false, currentId = null, advancing = false;
-let sideOn = true, playTimer = null, wakeLock = null;
-let rouletteOn = true, rouletteTimer = null, rouletteTick = null, rouletteRetryAt = 0;
+let sideOn = true, playTimer = null, wakeLock = null, skew = 0;
+let lastPaused = false, seenNonce = null, startingFor = null, retryAt = 0, recKey = '';
 const firstSeen = new Map();
 let sideInit = false;
 
@@ -177,11 +229,18 @@ async function api(path, method = 'POST', body) {
   if (r.status === 401) { toast('Wrong host key. Reload and enter the right one.'); throw new Error('auth'); }
   return r.json().catch(() => ({}));
 }
+const act = (path, method, body) => api(path, method, body).then((r) => { if (r && r.error) toast(r.error); return r; }).catch(() => ({}));
 
+// The song ended: the server starts a 10-second break (with the "up next" message).
 function next() {
   if (advancing) return;
   advancing = true;
-  api('/api/host/next', 'POST', { expectId: currentId }).catch(() => {}).finally(() => { advancing = false; });
+  api('/api/host/next', 'POST', { expectId: currentId }).catch(() => {}).finally(() => { advancing = false; retryAt = Date.now() + 2000; });
+}
+function startNow(force) {
+  if (advancing) return;
+  advancing = true;
+  api('/api/host/start', 'POST', { force: !!force }).catch(() => {}).finally(() => { advancing = false; retryAt = Date.now() + 1500; });
 }
 
 // Keep the phone awake while it is the TV's source.
@@ -196,6 +255,7 @@ function armTapFallback(np) {
   clearTimeout(playTimer);
   $('#tapBox').classList.add('hidden');
   playTimer = setTimeout(() => {
+    if (state.paused) return;
     let s; try { s = player.getPlayerState(); } catch { return; }
     if (s !== YT.PlayerState.PLAYING && s !== YT.PlayerState.BUFFERING) {
       $('#tapTitle').textContent = `Up now: ${np.singer} — ${np.title}`;
@@ -220,100 +280,124 @@ window.onYouTubeIframeAPIReady = () => {
   });
 };
 
-function cancelRoulette() {
-  clearTimeout(rouletteTimer); clearInterval(rouletteTick);
-  rouletteTimer = rouletteTick = null;
-  $('#rouletteNote').textContent = '';
-}
-
-// Nothing queued: after a short pause, ask the server for a roulette song.
-function armRoulette() {
-  const rs = state.settings && state.settings.roulette;
-  if (!rouletteOn || !rs || !rs.enabled || rouletteTimer || Date.now() < rouletteRetryAt) return;
-  let left = 15;
-  const label = () => {
-    $('#rouletteNote').textContent = `🎲 Karaoke roulette in ${left}s (${rs.genre ? rs.genre + ' songs' : 'popular songs'}). Add a song to skip it.`;
-  };
-  label();
-  rouletteTick = setInterval(() => { left = Math.max(0, left - 1); label(); }, 1000);
-  rouletteTimer = setTimeout(async () => {
-    cancelRoulette();
-    try {
-      const r = await api('/api/host/roulette');
-      if (r && r.error) throw new Error(r.error);
-    } catch (e) {
-      rouletteRetryAt = Date.now() + 60000;
-      toast('Roulette could not pick a song. Trying again in a minute.');
-      setTimeout(sync, 61000);
-    }
-  }, 15000);
-}
-
 function sync() {
-  const np = state.nowPlaying;
+  const np = state.nowPlaying, b = state.break;
+  const inBreak = started && !np && !!b;
   $('#startBox').classList.toggle('hidden', started);
-  $('#idleBox').classList.toggle('hidden', !started || !!np);
+  $('#breakBox').classList.toggle('hidden', !inBreak);
+  $('#idleBox').classList.toggle('hidden', !started || !!np || inBreak);
   $('#overlay').classList.toggle('hidden', started && !!np);
   $('#side').classList.toggle('hidden', !(started && np && sideOn));
   $('#cornerQr').classList.toggle('hidden', !(started && np && !sideOn));
-  if (!started || !ready) return;
+  $('#pausedBadge').classList.toggle('hidden', !(started && np && state.paused));
+  if (inBreak) renderBreak();
+  if (!started || !ready || REMOTE) return;
+
   if (np) {
-    cancelRoulette();
-    if (currentId !== np.id) { currentId = np.id; player.loadVideoById(np.videoId); armTapFallback(np); }
+    if (currentId !== np.id) {
+      currentId = np.id; lastPaused = false; seenNonce = state.restartNonce;
+      player.loadVideoById(np.videoId); armTapFallback(np);
+    }
+    if (state.restartNonce !== seenNonce) {
+      seenNonce = state.restartNonce; lastPaused = false;
+      try { player.seekTo(0, true); player.playVideo(); } catch {}
+      armTapFallback(np);
+    }
+    if (!!state.paused !== lastPaused) {
+      lastPaused = !!state.paused;
+      try { if (lastPaused) player.pauseVideo(); else player.playVideo(); } catch {}
+    }
   } else {
     clearTimeout(playTimer); $('#tapBox').classList.add('hidden');
     if (currentId) { currentId = null; try { player.stopVideo(); } catch {} }
-    if (state.upcoming.length) { cancelRoulette(); next(); } else armRoulette();
+    // idle: a queued song starts right away; with nothing queued the roulette song gets its 10-second break
+    if (!b && !advancing && Date.now() >= retryAt) {
+      if (state.upcoming.length) startNow(true);
+      else if (state.roulettePick && state.settings.roulette && state.settings.roulette.enabled) next();
+    }
   }
 }
 
-// The queue as the room sees it on the TV. New songs flash for a few seconds.
+function renderBreak() {
+  const b = state.break; if (!b) return;
+  const n = b.next;
+  $('#bHead').textContent = (b.message && b.message.headline) || 'Up next…';
+  $('#bTease').textContent = (b.message && b.message.tease) || '';
+  $('#bSong').textContent = n ? n.title : '';
+  if (n) $('#bImg').src = n.thumb;
+  $('#breakInfo').textContent = n ? `Next: ${n.singer} — ${n.title}` : '';
+  tick();
+}
+
+// countdown during the break; the TV phone starts the song when it reaches zero
+function tick() {
+  const b = state.break;
+  if (!b || state.nowPlaying) return;
+  const left = Math.max(0, Math.ceil((b.until - (Date.now() + skew)) / 1000));
+  $('#bCount').textContent = left > 0 ? left : '🎤';
+  if (!REMOTE && started && ready && left <= 0 && startingFor !== b.until) {
+    startingFor = b.until;
+    api('/api/host/start', 'POST', {}).catch(() => {}).finally(() => { setTimeout(() => { if (startingFor === b.until) startingFor = null; }, 1500); });
+  }
+}
+setInterval(tick, 250);
+
+// The queue as the room sees it on the TV: current singer + the next 3.
 function renderSide(st) {
   const np = st.nowPlaying;
   $('#sideSinger').textContent = np ? np.singer : '';
   $('#sideTitle').textContent = np ? np.title : '';
   const now = Date.now();
-  const all = [...st.upcoming.map((s, i) => ({ s, n: i + 1 })), ...st.review.map((s) => ({ s, n: null }))];
-  for (const { s } of all) if (!firstSeen.has(s.id)) firstSeen.set(s.id, sideInit ? now : 0);
+  const rows = st.upcoming.slice(0, 3).map((s, i) => ({ s, n: i + 1 }));
+  if (rows.length < 3 && st.roulettePick && st.settings.roulette && st.settings.roulette.enabled) rows.push({ s: st.roulettePick, n: '🎲' });
+  for (const { s } of rows) if (!firstSeen.has(s.id)) firstSeen.set(s.id, sideInit ? now : 0);
   sideInit = true;
 
   const list = $('#sideList'); list.replaceChildren();
-  all.slice(0, 8).forEach(({ s, n }) => {
+  rows.forEach(({ s, n }) => {
     const row = document.createElement('div');
-    row.className = 'qrow' + (now - firstSeen.get(s.id) < 4000 ? ' new' : '') + (n == null ? ' pending' : '');
-    const num = document.createElement('span'); num.className = 'qn'; num.textContent = n == null ? '…' : n;
+    row.className = 'qrow' + (n === '🎲' ? ' dice' : '') + (now - firstSeen.get(s.id) < 4000 ? ' new' : '');
+    const num = document.createElement('span'); num.className = 'qn'; num.textContent = n;
     const txt = document.createElement('div'); txt.className = 'qt';
     const a = document.createElement('b'); a.textContent = s.singer;
-    const b = document.createElement('span'); b.textContent = s.title + (n == null ? ' (waiting for OK)' : '');
+    const b = document.createElement('span'); b.textContent = s.title;
     txt.append(a, b); row.append(num, txt); list.append(row);
   });
-  if (all.length > 8) { const m = document.createElement('div'); m.className = 'qmore'; m.textContent = `+ ${all.length - 8} more`; list.append(m); }
-  if (!all.length) { const e = document.createElement('div'); e.className = 'qempty'; e.textContent = 'Nobody yet. Add a song!'; list.append(e); }
+  if (!rows.length) { const e = document.createElement('div'); e.className = 'qempty'; e.textContent = 'Nobody yet. Add a song!'; list.append(e); }
 }
 
-function rowFor(s, num, buttons) {
+function pill(text, cls) { const p = document.createElement('span'); p.className = 'pill ' + cls; p.textContent = text; p.style.marginLeft = '6px'; return p; }
+
+function rowFor(s, num, buttons, extraPills = []) {
   const row = document.createElement('div'); row.className = 'song';
   if (num != null) { const n = document.createElement('div'); n.className = 'num'; n.textContent = num; row.append(n); }
   const img = document.createElement('img'); img.src = s.thumb; img.alt = '';
   const box = document.createElement('div'); box.className = 'grow';
   const t = document.createElement('div'); t.className = 't'; t.textContent = s.title;
-  const sub = document.createElement('div'); sub.className = 'muted small'; sub.textContent = `${s.singer} · ${s.channel}`;
+  const sub = document.createElement('div'); sub.className = 'muted small';
+  sub.textContent = [s.singer, s.channel].filter(Boolean).join(' · ');
+  for (const p of extraPills) sub.append(p);
   box.append(t, sub);
-  const act = document.createElement('div'); act.className = 'actions';
+  const actions = document.createElement('div'); actions.className = 'actions';
   for (const [label, cls, fn] of buttons) {
-    const b = document.createElement('button'); if (cls) b.className = cls; b.textContent = label; b.onclick = fn; act.append(b);
+    const b = document.createElement('button'); if (cls) b.className = cls; b.textContent = label; b.onclick = fn; actions.append(b);
   }
-  row.append(img, box, act);
+  row.append(img, box, actions);
   return row;
 }
 
 function render(st) {
   state = st;
+  skew = st.serverNow - Date.now();
   $('#noSearch').classList.toggle('hidden', !!(st.settings && st.settings.searchEnabled));
   const np = st.nowPlaying;
   $('#nowBlock').classList.toggle('hidden', !np);
-  if (np) { $('#nowTitle').textContent = np.title; $('#nowSinger').textContent = np.singer; }
-  $('#skip').classList.toggle('hidden', !np);
+  if (np) {
+    $('#nowTitle').textContent = np.title;
+    $('#nowSinger').textContent = np.singer + (np.nonPreferred ? ' · ⚠ non-preferred video, approved by the guest' : '');
+  }
+  $('#pauseBtn').textContent = st.paused ? '▶ Resume' : '⏸ Pause';
+  $('#breakBlock').classList.toggle('hidden', !(st.break && !np));
   if (armedFor && (!np || np.id !== armedFor)) disarmSkip();
   if (!armedFor) $('#skip').textContent = np && np.roulette ? 'Skip roulette song' : 'Skip song';
 
@@ -327,27 +411,92 @@ function render(st) {
   const list = $('#list'); list.replaceChildren();
   st.upcoming.forEach((s, i) => list.append(rowFor(s, i + 1, [
     ...(i === 0 && st.upcoming.length > 1
-      ? [['Skip for now', '', () => api('/api/host/defer/' + s.id).then((r) => { if (r && r.error) toast(r.error); })]]
+      ? [['Skip for now', '', () => act('/api/host/defer/' + s.id)]]
       : []),
-    ...(i > 0 ? [['Play next', '', () => api('/api/host/playnext/' + s.id)]] : []),
-    ['Remove', 'danger', () => api('/api/queue/' + s.id, 'DELETE')],
+    ...(i > 0 ? [['Play next', '', () => act('/api/host/playnext/' + s.id)]] : []),
+    ['Remove', 'danger', () => act('/api/queue/' + s.id, 'DELETE')],
+  ], [
+    ...(s.nonPreferred ? [pill('⚠ Guest OK’d non-preferred video', 'warn')] : []),
+    ...(s.open ? [pill('open mic', 'dice')] : []),
   ])));
   $('#empty').classList.toggle('hidden', st.upcoming.length > 0);
 
-  const rl = $('#reviewList'); rl.replaceChildren();
-  st.review.forEach((s) => rl.append(rowFor(s, null, [
-    ['Preview', '', () => window.open('https://www.youtube.com/watch?v=' + s.videoId, '_blank', 'noopener')],
-    ['Approve', 'good', () => api('/api/host/approve/' + s.id)],
-    ['Deny', 'danger', () => api('/api/queue/' + s.id, 'DELETE')],
-  ])));
-  $('#reviewBlock').classList.toggle('hidden', st.review.length === 0);
-  // a waiting approval is worth a nudge, since the controls are tucked away
-  $('#menuBtn').textContent = st.review.length ? '❗' : '☰';
+  const rr = $('#rouletteRow'); rr.replaceChildren();
+  const rs = st.settings.roulette || {};
+  if (rs.enabled && st.roulettePick) rr.append(rowFor(st.roulettePick, null, [], rs.genre ? [pill(rs.genre, 'dice')] : []));
+  else { const d = document.createElement('div'); d.className = 'muted small'; d.textContent = rs.enabled ? 'Picking a song…' : 'Roulette is off.'; rr.append(d); }
+  $('#rouletteToggle').textContent = rs.enabled ? 'On' : 'Off';
+  $('#shuffle').disabled = !rs.enabled;
+
+  const key = (np ? np.id : '') + '|' + st.upcoming.length;
+  if (key !== recKey && $('#drawer').classList.contains('open')) loadRecs();
   sync();
 }
 
-$('#start').onclick = () => { started = true; keepAwake(); sync(); render(state); };
+// ---------- host search + suggestions ----------
+function candRow(c) {
+  const pills = [c.preferred ? pill('preferred', 'good') : pill('other channel', 'warn')];
+  const buttons = c.inQueue ? [] : [
+    ['➕ Queue', 'good', () => addHost(c, 'queue')],
+    ['🎲 Roulette', '', () => addHost(c, 'roulette')],
+  ];
+  buttons.push(['Preview', '', () => window.open('https://www.youtube.com/watch?v=' + c.videoId, '_blank', 'noopener')]);
+  return rowFor({ ...c, singer: '' }, null, buttons, pills);
+}
+
+async function addHost(c, target) {
+  const singer = $('#hsinger').value.trim();
+  const r = await act('/api/host/add', 'POST', { videoId: c.videoId, target, singer });
+  if (r && !r.error) {
+    toast(target === 'roulette' ? 'Set as the roulette song.' : singer ? `Added for ${singer}.` : 'Added as an open-mic song. Guests can claim it.');
+    loadRecs();
+  }
+}
+
+async function hostSearch() {
+  const q = $('#hq').value.trim();
+  const msg = $('#hmsg'), res = $('#hres');
+  if (q.length < 2) { msg.className = 'msg bad'; msg.textContent = 'Type something to search for.'; return; }
+  msg.className = 'msg hidden'; res.replaceChildren();
+  const btn = $('#hfind'); btn.disabled = true; btn.textContent = '…';
+  try {
+    const r = await fetch('/api/host/search?q=' + encodeURIComponent(q), { headers: { 'x-host-key': KEY } });
+    const j = await r.json();
+    if (!r.ok) { msg.className = 'msg bad'; msg.textContent = j.error || 'Search failed.'; return; }
+    j.results.forEach((c) => res.append(candRow(c)));
+    if (!j.results.length) { msg.className = 'msg wait'; msg.textContent = 'No matches. Try other words.'; }
+  } catch { msg.className = 'msg bad'; msg.textContent = 'Network problem.'; }
+  finally { btn.disabled = false; btn.textContent = 'Search'; }
+}
+
+async function loadRecs() {
+  recKey = (state.nowPlaying ? state.nowPlaying.id : '') + '|' + state.upcoming.length;
+  try {
+    const r = await fetch('/api/host/recs', { headers: { 'x-host-key': KEY } });
+    const j = await r.json();
+    const box = $('#recs'); box.replaceChildren();
+    (j.recs || []).forEach((c) => box.append(candRow(c)));
+    $('#recHint').textContent = (j.recs || []).length
+      ? 'Matched to the artists and genres people picked. Add to the queue (blank name = open mic) or make it the roulette song.'
+      : 'Suggestions appear once guests have picked a few songs.';
+  } catch {}
+}
+
+$('#start').onclick = () => { started = true; keepAwake(); render(state); };
 $('#tapBtn').onclick = () => { try { player.playVideo(); } catch {} $('#tapBox').classList.add('hidden'); };
+$('#pauseBtn').onclick = () => act('/api/host/pause', 'POST', { paused: !state.paused });
+$('#restartBtn').onclick = () => { act('/api/host/restart'); $('#drawer').classList.remove('open'); };
+$('#startNow').onclick = () => act('/api/host/start', 'POST', { force: true });
+$('#shuffle').onclick = () => act('/api/host/roulette', 'POST', { action: 'shuffle' });
+$('#rouletteToggle').onclick = () => {
+  const on = state.settings.roulette && state.settings.roulette.enabled;
+  act('/api/host/roulette', 'POST', { action: on ? 'off' : 'on' });
+};
+$('#hfind').onclick = hostSearch;
+$('#hq').addEventListener('keydown', (e) => { if (e.key === 'Enter') hostSearch(); });
+$('#hq').addEventListener('input', () => $('#hqx').classList.toggle('hidden', !$('#hq').value));
+$('#hqx').onclick = () => { $('#hq').value = ''; $('#hqx').classList.add('hidden'); $('#hq').focus(); };
+
 // Skipping a roulette song is one tap. Skipping a guest's song asks for a second
 // tap, so a stray touch can't cut someone off in the middle of their song.
 let armedFor = null, armTimer = null;
@@ -367,17 +516,10 @@ $('#skip').onclick = () => {
     return;
   }
   disarmSkip();
-  api('/api/host/next', 'POST', { expectId: np.id, skip: true })
-    .then((r) => { if (r && r.error) toast(r.error); })
-    .catch(() => {});
+  act('/api/host/next', 'POST', { expectId: np.id, skip: true });
   $('#drawer').classList.remove('open');
 };
-$('#rouletteToggle').onclick = () => {
-  rouletteOn = !rouletteOn;
-  $('#rouletteToggle').textContent = rouletteOn ? 'On' : 'Off';
-  if (rouletteOn) sync(); else cancelRoulette();
-};
-$('#menuBtn').onclick = () => $('#drawer').classList.toggle('open');
+$('#menuBtn').onclick = () => { $('#drawer').classList.toggle('open'); if ($('#drawer').classList.contains('open')) loadRecs(); };
 $('#closeBtn').onclick = () => $('#drawer').classList.remove('open');
 $('#qrToggle').onclick = () => { sideOn = !sideOn; $('#qrToggle').textContent = sideOn ? 'On' : 'Off'; render(state); };
 
@@ -386,7 +528,7 @@ fetch('/api/join').then((r) => r.json()).then((j) => {
 }).catch(() => {});
 
 api('/api/host/check', 'GET').then(() => {
-  fetch('/api/state').then((r) => r.json()).then(render);
+  fetch('/api/state').then((r) => r.json()).then((s) => { render(s); if (REMOTE) loadRecs(); });
   const es = new EventSource('/api/events');
   es.onmessage = (e) => render(JSON.parse(e.data));
 }).catch(() => {});

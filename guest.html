@@ -11,18 +11,32 @@
   h1 span { background: linear-gradient(90deg, var(--pink), var(--cyan)); -webkit-background-clip: text; background-clip: text; color: transparent; }
   .now { border-color: var(--pink); }
   .label { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
-  .field { display: grid; gap: 6px; margin-bottom: 14px; }
+  .field { display: grid; gap: 6px; margin-bottom: 12px; }
   .field label { font-weight: 600; font-size: 14px; }
   .song button { flex: none; }
   .song .added { color: var(--green); font-weight: 700; font-size: 14px; flex: none; }
+  .btns { display: flex; flex-direction: column; gap: 6px; flex: none; }
+  .btns button { padding: 8px 12px; font-size: 14px; }
+  .banner { border-color: var(--cyan); background: linear-gradient(135deg, #1d1230, #12243a); }
+  .banner .h { font-weight: 800; font-size: 17px; }
+  .banner .tease { color: var(--amber); margin-top: 6px; }
+  .dice-row { border: 1px dashed var(--cyan); border-radius: 12px; padding: 10px; margin-top: 8px; }
+  .hint { margin: 4px 0 10px; }
+  .cnt { color: var(--muted); font-size: 12px; margin-left: 6px; }
 </style>
 </head>
 <body>
 <div class="wrap">
   <header>
     <h1>🎤 <span>Karaoke Queue</span></h1>
-    <p class="muted" style="margin:6px 0 0">Search for your song, tap Add, and watch the screen for your turn.</p>
+    <p class="muted" style="margin:6px 0 0">Search, preview, tap Add, and watch the screen for your turn.</p>
   </header>
+
+  <section class="card banner hidden" id="banner">
+    <div class="label">Up next on the TV</div>
+    <div class="h" id="bnHead"></div>
+    <div class="tease" id="bnTease"></div>
+  </section>
 
   <section class="card now hidden" id="nowCard">
     <div class="label">Now singing</div>
@@ -32,16 +46,23 @@
   <section class="card">
     <div class="field">
       <label for="name">Your name</label>
-      <input id="name" maxlength="24" placeholder="e.g. Chris" autocomplete="given-name">
+      <div class="clr"><input id="name" maxlength="24" placeholder="e.g. Chris" autocomplete="given-name"><button type="button" class="x hidden" data-for="name" aria-label="Clear">✕</button></div>
     </div>
-    <div class="field" style="margin-bottom:0">
-      <label for="q">Find your song</label>
-      <div class="row">
-        <input id="q" type="search" placeholder="Song or artist" class="grow" enterkeyhint="search" autocomplete="off">
-        <button class="primary" id="find">Search</button>
-      </div>
-      <div class="muted small" id="hint">Only karaoke videos with lyrics and the singer's voice show up.</div>
+    <div class="label">Find your song (fill in at least one)</div>
+    <div class="field">
+      <label for="fArtist">Artist</label>
+      <div class="clr"><input id="fArtist" maxlength="60" placeholder="e.g. Adele" enterkeyhint="search" autocomplete="off"><button type="button" class="x hidden" data-for="fArtist" aria-label="Clear">✕</button></div>
     </div>
+    <div class="field">
+      <label for="fSong">Song title</label>
+      <div class="clr"><input id="fSong" maxlength="60" placeholder="e.g. Hello" enterkeyhint="search" autocomplete="off"><button type="button" class="x hidden" data-for="fSong" aria-label="Clear">✕</button></div>
+    </div>
+    <div class="field">
+      <label for="fHandle">YouTube handle</label>
+      <div class="clr"><input id="fHandle" maxlength="60" placeholder="e.g. @7clouds" enterkeyhint="search" autocomplete="off" autocapitalize="off"><button type="button" class="x hidden" data-for="fHandle" aria-label="Clear">✕</button></div>
+    </div>
+    <button class="primary" id="find" style="width:100%">Search</button>
+    <div class="muted small hint" id="hint"></div>
     <div id="msg" class="msg hidden" role="status"></div>
     <div id="results" style="margin-top:8px"></div>
   </section>
@@ -50,7 +71,47 @@
     <div class="label">Up next</div>
     <div id="list"></div>
     <div id="empty" class="muted">Nothing queued yet. Be the first!</div>
+    <div class="dice-row hidden" id="diceRow">
+      <div class="label" style="margin-bottom:4px">🎲 Roulette pick</div>
+      <div class="song" id="diceSong" style="border-top:0;padding:4px 0"></div>
+      <div class="muted small">Claim it to sing it. It goes to the bottom of the queue, or plays next if nobody is waiting.</div>
+    </div>
   </section>
+
+  <section class="card hidden" id="recCard">
+    <div class="label">Recommended for the room</div>
+    <div class="muted small hint">Based on the artists and genres picked in the last 48 hours.</div>
+    <div id="recList"></div>
+  </section>
+
+  <section class="card hidden" id="topCard">
+    <div class="label">Top songs people request</div>
+    <div id="topList"></div>
+  </section>
+</div>
+
+<div class="modal hidden" id="preview">
+  <div class="box">
+    <div class="vid" id="pvBox"></div>
+    <div id="pvTitle" style="font-weight:700"></div>
+    <div class="muted small" id="pvSub"></div>
+    <div class="btns">
+      <button id="pvClose">Close</button>
+      <button class="primary" id="pvAdd">Add to queue</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal hidden" id="confirm">
+  <div class="box">
+    <h3>Not a preferred video</h3>
+    <div id="cfTitle" style="font-weight:600"></div>
+    <p style="margin:0">This is not a preferred video and probably doesn't have the singer singing the song. Do you still want to add it to the queue?</p>
+    <div class="btns">
+      <button id="cfNo">No</button>
+      <button class="primary" id="cfYes">Yes, add it</button>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -62,9 +123,22 @@ const store = {
 let mine = store.get('kq_mine', {});   // songId -> owner token
 let last = null;
 let shown = [];                        // current search results
+let discover = { top: [], recommended: [] };
+
+function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+function pill(text, cls) { const p = el('span', 'pill ' + cls, text); p.style.marginLeft = '6px'; return p; }
 
 $('#name').value = store.get('kq_name', '');
 $('#name').addEventListener('input', () => store.set('kq_name', $('#name').value));
+
+// every text field gets a clear (x) button on its far right
+document.querySelectorAll('.clr .x').forEach((x) => {
+  const input = document.getElementById(x.dataset.for);
+  const sync = () => x.classList.toggle('hidden', !input.value);
+  input.addEventListener('input', sync);
+  x.addEventListener('click', () => { input.value = ''; input.dispatchEvent(new Event('input')); input.focus(); });
+  sync();
+});
 
 function say(kind, text) {
   const m = $('#msg');
@@ -73,97 +147,119 @@ function say(kind, text) {
   m.textContent = text;
 }
 
-function songRow(s, num) {
-  const row = document.createElement('div');
-  row.className = 'song';
-  if (num != null) { const n = document.createElement('div'); n.className = 'num'; n.textContent = num; row.append(n); }
-  const img = document.createElement('img'); img.src = s.thumb; img.alt = ''; img.loading = 'lazy';
-  const box = document.createElement('div'); box.className = 'grow';
-  const t = document.createElement('div'); t.className = 't'; t.textContent = s.title;
-  const sub = document.createElement('div'); sub.className = 'muted small';
-  sub.textContent = s.singer + (mine[s.id] ? ' (you)' : '');
-  if (s.status === 'review') {
-    const p = document.createElement('span'); p.className = 'pill review'; p.textContent = 'Waiting for host OK'; p.style.marginLeft = '6px';
-    sub.append(p);
-  }
-  box.append(t, sub);
-  row.append(img, box);
-  if (mine[s.id]) {
-    const b = document.createElement('button'); b.className = 'danger'; b.textContent = 'Remove';
-    b.onclick = () => remove(s.id);
-    row.append(b);
-  }
+const inQueueSet = () => new Set(last ? [...last.upcoming, ...(last.nowPlaying ? [last.nowPlaying] : [])].map((s) => s.videoId) : []);
+
+// A song row for search results, Top songs and Recommended.
+function candRow(r, extra) {
+  const row = el('div', 'song');
+  const img = el('img'); img.src = r.thumb; img.alt = ''; img.loading = 'lazy';
+  const info = el('div', 'grow');
+  info.append(el('div', 't', r.title));
+  const sub = el('div', 'muted small', r.channel);
+  sub.append(r.preferred ? pill('Preferred', 'good') : pill('Other channel', 'warn'));
+  if (extra) sub.append(el('span', 'cnt', extra));
+  info.append(sub);
+  row.append(img, info);
+  const btns = el('div', 'btns');
+  const pv = el('button', '', 'Preview'); pv.onclick = () => openPreview(r);
+  btns.append(pv);
+  if (r.inQueue || inQueueSet().has(r.videoId)) btns.append(el('div', 'added', 'In queue ✓'));
+  else { const b = el('button', 'primary', 'Add'); b.onclick = () => tryAdd(r, b); btns.append(b); }
+  row.append(btns);
   return row;
 }
 
 function renderResults() {
-  const box = $('#results');
-  box.replaceChildren();
-  const queued = new Set(last ? [...last.upcoming, ...last.review, ...(last.nowPlaying ? [last.nowPlaying] : [])].map((s) => s.videoId) : []);
-  for (const r of shown) {
-    const row = document.createElement('div'); row.className = 'song';
-    const img = document.createElement('img'); img.src = r.thumb; img.alt = ''; img.loading = 'lazy';
-    const info = document.createElement('div'); info.className = 'grow';
-    const t = document.createElement('div'); t.className = 't'; t.textContent = r.title;
-    const sub = document.createElement('div'); sub.className = 'muted small'; sub.textContent = r.channel;
-    if (r.preferred) {
-      const p = document.createElement('span'); p.className = 'pill'; p.textContent = 'Top pick';
-      p.style.cssText = 'margin-left:6px;color:var(--green);border-color:var(--green)'; sub.append(p);
-    }
-    if (r.status === 'review') {
-      const p = document.createElement('span'); p.className = 'pill review'; p.textContent = 'Host will check'; p.style.marginLeft = '6px';
-      sub.append(p);
-    }
-    info.append(t, sub);
-    row.append(img, info);
-    if (r.inQueue || queued.has(r.videoId)) {
-      const a = document.createElement('div'); a.className = 'added'; a.textContent = 'In queue ✓';
-      row.append(a);
-    } else {
-      const b = document.createElement('button'); b.className = 'primary'; b.textContent = 'Add';
-      b.onclick = () => add(r, b);
-      row.append(b);
-    }
-    box.append(row);
-  }
+  const box = $('#results'); box.replaceChildren();
+  for (const r of shown) box.append(candRow(r));
 }
 
+function renderDiscover() {
+  const rc = $('#recCard'), tc = $('#topCard');
+  rc.classList.toggle('hidden', !discover.recommended.length);   // blank when nothing was picked in the last 48h
+  tc.classList.toggle('hidden', !discover.top.length);
+  const rl = $('#recList'); rl.replaceChildren();
+  discover.recommended.forEach((r) => rl.append(candRow(r)));
+  const tl = $('#topList'); tl.replaceChildren();
+  discover.top.forEach((r, i) => tl.append(candRow(r, `#${i + 1} · requested ${r.count}×`)));
+}
+
+function songRow(s, num) {
+  const row = el('div', 'song');
+  row.append(el('div', 'num', num));
+  const img = el('img'); img.src = s.thumb; img.alt = ''; img.loading = 'lazy';
+  const box = el('div', 'grow');
+  box.append(el('div', 't', s.title));
+  box.append(el('div', 'muted small', s.singer + (mine[s.id] ? ' (you)' : '')));
+  row.append(img, box);
+  if (mine[s.id]) {
+    const b = el('button', 'danger', 'Remove'); b.onclick = () => remove(s.id); row.append(b);
+  } else if (s.open) {
+    const b = el('button', 'primary', 'Claim'); b.onclick = () => claim(s, b); row.append(b);
+  }
+  return row;
+}
+
+let discoverTimer = null, discoverKey = '';
 function render(st) {
   last = st;
   const chs = (st.settings && st.settings.channels) || [];
   $('#hint').textContent = chs.length
-    ? 'Top picks come from the ' + chs.join(' and ') + ' karaoke channel. Other channels are listed after.'
+    ? 'Preferred channels are listed first: ' + chs.map((c) => '@' + c).join(', ') + '. Anything else asks you to confirm.'
     : "Only karaoke videos with lyrics and the singer's voice show up.";
+
+  const b = st.break;
+  $('#banner').classList.toggle('hidden', !(b && b.message));
+  if (b && b.message) { $('#bnHead').textContent = b.message.headline || ''; $('#bnTease').textContent = b.message.tease || ''; }
+
   const np = st.nowPlaying;
   $('#nowCard').classList.toggle('hidden', !np);
   if (np) { $('#nowImg').src = np.thumb; $('#nowTitle').textContent = np.title; $('#nowSinger').textContent = np.singer; }
 
-  const list = $('#list');
-  list.replaceChildren();
+  const list = $('#list'); list.replaceChildren();
   st.upcoming.forEach((s, i) => list.append(songRow(s, i + 1)));
-  st.review.forEach((s) => list.append(songRow(s, null)));
-  $('#empty').classList.toggle('hidden', st.upcoming.length + st.review.length > 0);
+  $('#empty').classList.toggle('hidden', st.upcoming.length > 0);
 
-  const live = new Set([...st.upcoming, ...st.review].map((s) => s.id));
+  const rp = st.roulettePick;
+  $('#diceRow').classList.toggle('hidden', !rp);
+  const ds = $('#diceSong'); ds.replaceChildren();
+  if (rp) {
+    const img = el('img'); img.src = rp.thumb; img.alt = '';
+    const box = el('div', 'grow'); box.append(el('div', 't', rp.title), el('div', 'muted small', rp.channel));
+    const btn = el('button', 'primary', 'Claim'); btn.onclick = () => claim(rp, btn);
+    ds.append(img, box, btn);
+  }
+
+  const live = new Set(st.upcoming.map((s) => s.id));
   let changed = false;
   for (const id of Object.keys(mine)) if (!live.has(id) && !(np && np.id === id)) { delete mine[id]; changed = true; }
   if (changed) store.set('kq_mine', mine);
 
   if (shown.length) renderResults();
+  renderDiscover();
+
+  // lists depend on what was just requested: refresh them when the queue changes
+  const key = (np ? np.id : '') + '|' + st.upcoming.map((s) => s.id).join(',');
+  if (key !== discoverKey) { discoverKey = key; clearTimeout(discoverTimer); discoverTimer = setTimeout(loadDiscover, 800); }
+}
+
+async function loadDiscover() {
+  try { discover = await (await fetch('/api/discover')).json(); if (!discover.top) discover = { top: [], recommended: [] }; renderDiscover(); } catch {}
 }
 
 async function search() {
-  const q = $('#q').value.trim();
-  if (q.length < 2) return say('bad', 'Type a song or an artist.');
+  const artist = $('#fArtist').value.trim(), song = $('#fSong').value.trim(), handle = $('#fHandle').value.trim();
+  if (!artist && !song && !handle) return say('bad', 'Fill in at least one of: artist, song title or YouTube handle.');
   const btn = $('#find'); btn.disabled = true; btn.textContent = 'Searching…';
   say('', '');
   try {
-    const r = await fetch('/api/search?q=' + encodeURIComponent(q));
+    const qs = new URLSearchParams({ artist, song, handle });
+    const r = await fetch('/api/search?' + qs);
     const j = await r.json();
     if (!r.ok) { shown = []; renderResults(); return say('bad', j.error || 'Search failed.'); }
     shown = j.results;
     renderResults();
-    if (!shown.length) say('wait', 'No matching songs found. Try the artist name or a different spelling.');
+    if (!shown.length) say('wait', 'No matching songs found. Try fewer fields or a different spelling.');
   } catch {
     say('bad', 'Network problem. Please try again.');
   } finally {
@@ -171,21 +267,76 @@ async function search() {
   }
 }
 
-async function add(item, btn) {
+// ---------- preview ----------
+let pvItem = null;
+function openPreview(r) {
+  pvItem = r;
+  const f = el('iframe');
+  f.src = 'https://www.youtube-nocookie.com/embed/' + encodeURIComponent(r.videoId) + '?autoplay=1&playsinline=1&rel=0';
+  f.allow = 'autoplay; encrypted-media; picture-in-picture'; f.setAttribute('allowfullscreen', '');
+  $('#pvBox').replaceChildren(f);
+  $('#pvTitle').textContent = r.title;
+  $('#pvSub').textContent = r.channel + (r.preferred ? ' · preferred' : ' · not a preferred channel');
+  const queued = r.inQueue || inQueueSet().has(r.videoId);
+  $('#pvAdd').classList.toggle('hidden', queued);
+  $('#preview').classList.remove('hidden');
+}
+function closePreview() { $('#pvBox').replaceChildren(); $('#preview').classList.add('hidden'); }   // removing the iframe stops the sound
+$('#pvClose').onclick = closePreview;
+$('#pvAdd').onclick = () => { const r = pvItem; closePreview(); if (r) tryAdd(r); };
+
+// ---------- adding ----------
+function needName() {
   const singer = $('#name').value.trim();
-  if (!singer) { $('#name').focus(); return say('bad', 'Please enter your name first.'); }
-  btn.disabled = true; btn.textContent = 'Adding…';
+  if (!singer) { $('#name').focus(); window.scrollTo({ top: 0, behavior: 'smooth' }); say('bad', 'Please enter your name first.'); }
+  return singer;
+}
+
+let pendingAdd = null;
+function tryAdd(item, btn) {
+  if (!needName()) return;
+  if (!item.preferred) {          // ask before adding a video from a non-preferred channel
+    pendingAdd = item;
+    $('#cfTitle').textContent = item.title;
+    $('#confirm').classList.remove('hidden');
+    return;
+  }
+  postAdd(item, false, btn);
+}
+$('#cfNo').onclick = () => { pendingAdd = null; $('#confirm').classList.add('hidden'); };   // back to the search screen, nothing added
+$('#cfYes').onclick = () => { const it = pendingAdd; pendingAdd = null; $('#confirm').classList.add('hidden'); if (it) postAdd(it, true); };
+
+async function postAdd(item, confirmed, btn) {
+  const singer = $('#name').value.trim();
+  if (btn) { btn.disabled = true; btn.textContent = 'Adding…'; }
   try {
-    const r = await fetch('/api/queue', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ singer, videoId: item.videoId }) });
+    const r = await fetch('/api/queue', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ singer, videoId: item.videoId, confirmNonPreferred: confirmed }) });
     const j = await r.json();
-    if (!r.ok) { btn.disabled = false; btn.textContent = 'Add'; return say('bad', j.error || 'Could not add that song.'); }
+    if (r.status === 409 && j.needsConfirm) { if (btn) { btn.disabled = false; btn.textContent = 'Add'; } item.preferred = false; return tryAdd(item); }
+    if (!r.ok) { if (btn) { btn.disabled = false; btn.textContent = 'Add'; } return say('bad', j.error || 'Could not add that song.'); }
     mine[j.item.id] = j.token; store.set('kq_mine', mine);
-    say(j.item.status === 'review' ? 'wait' : 'ok',
-        j.item.status === 'review' ? `Added “${j.item.title}”. ${j.message}` : `You're in! “${j.item.title}” is in the queue.`);
+    say('ok', `You're in! “${j.item.title}” is in the queue.`);
     item.inQueue = true;
     refresh();
   } catch {
-    btn.disabled = false; btn.textContent = 'Add';
+    if (btn) { btn.disabled = false; btn.textContent = 'Add'; }
+    say('bad', 'Network problem. Please try again.');
+  }
+}
+
+async function claim(item, btn) {
+  const singer = needName();
+  if (!singer) return;
+  btn.disabled = true; btn.textContent = 'Claiming…';
+  try {
+    const r = await fetch('/api/claim', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ singer, id: item.id }) });
+    const j = await r.json();
+    if (!r.ok) { btn.disabled = false; btn.textContent = 'Claim'; say('bad', j.error || 'Could not claim that song.'); return refresh(); }
+    mine[j.item.id] = j.token; store.set('kq_mine', mine);
+    say('ok', `It's yours! “${j.item.title}” is in the queue.`);
+    refresh();
+  } catch {
+    btn.disabled = false; btn.textContent = 'Claim';
     say('bad', 'Network problem. Please try again.');
   }
 }
@@ -202,14 +353,16 @@ async function refresh() {
 }
 
 $('#find').onclick = search;
-$('#q').addEventListener('keydown', (e) => { if (e.key === 'Enter') search(); });
+['#fArtist', '#fSong', '#fHandle'].forEach((s) => $(s).addEventListener('keydown', (e) => { if (e.key === 'Enter') search(); }));
 
 refresh();
+loadDiscover();
 try {
   const es = new EventSource('/api/events');
   es.onmessage = (e) => render(JSON.parse(e.data));
 } catch {}
 setInterval(refresh, 20000);   // safety net if the live stream drops
+setInterval(loadDiscover, 60000);
 </script>
 </body>
 </html>

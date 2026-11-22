@@ -153,8 +153,8 @@ test('search: preferred first, other channels after, rejects dropped, other hand
   try {
     let r = await call('/api/search?song=zzzz%20nothing');
     const list = r.json.results;
-    assert.deepEqual(list.map((x) => [x.videoId, x.preferred]), [['pppppppppp3', true], ['nnnnnnnnnn1', false], ['nnnnnnnnnn3', false]]);
-    assert.ok(!ids(list).includes('nnnnnnnnnn2'), 'non-karaoke video is dropped');
+    assert.deepEqual(list.map((x) => [x.videoId, x.preferred]), [['pppppppppp3', true], ['nnnnnnnnnn1', false], ['nnnnnnnnnn3', false], ['nnnnnnnnnn2', false]]);
+    assert.equal(ids(list).at(-1), 'nnnnnnnnnn2', 'non-karaoke video is listed last');
     assert.match(calls.search[0].q, /karaoke with lyrics/);
 
     r = await call('/api/search?artist=prince&handle=@someotherchannel');
@@ -177,7 +177,7 @@ test('add: preferred goes straight in; non-preferred needs a yes; rejects blocke
     r = await add('Ben', 'nnnnnnnnnn1');
     assert.equal(r.status, 409);
     assert.equal(r.json.needsConfirm, true);
-    assert.match(r.json.error, /isn't a preferred video/i);
+    assert.match(r.json.error, /not a preferred video.*instrumental/i);
     assert.equal(state.queue.length, 1, 'nothing added without a yes');
 
     r = await add('Ben', 'nnnnnnnnnn1', { confirmNonPreferred: true });
@@ -185,8 +185,10 @@ test('add: preferred goes straight in; non-preferred needs a yes; rejects blocke
     assert.equal(r.json.item.nonPreferred, true);
     assert.equal(r.json.item.title.includes('Prince'), true);
 
+    r = await add('Cat', 'nnnnnnnnnn2');
+    assert.equal(r.status, 409, 'non-karaoke video still needs the yes');
     r = await add('Cat', 'nnnnnnnnnn2', { confirmNonPreferred: true });
-    assert.equal(r.status, 422, 'a non-karaoke video is still refused');
+    assert.equal(r.status, 201, 'with a yes, anything non-preferred can be added');
 
     r = await add('Ann', 'pppppppppp1');
     assert.equal(r.status, 409, 'duplicate');

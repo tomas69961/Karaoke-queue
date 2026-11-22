@@ -367,10 +367,7 @@ function createApp(opts = {}) {
         if (state.roulettePick && !t.has(state.roulettePick.videoId) && state.roulettePick.videoId !== avoidId) return;
         state.roulettePick = null;
         const cut = now() - NO_REPEAT;
-        const recentlyPlayed = new Set([
-          ...state.rouletteLog.filter((r) => r.at >= cut).map((r) => r.videoId),
-          ...state.history.filter((h) => (h.startedAt || 0) >= cut).map((h) => h.videoId),
-        ]);
+        const recentlyPlayed = new Set(state.rouletteLog.filter((r) => r.at >= cut).map((r) => r.videoId));
         if (avoidId) t.add(avoidId);
         const e = pickRoulette(catalog.entries(), {
           taste: buildTaste(recentRequests()), exclude: t, recentlyPlayed, genre: topGenre(), random,
@@ -445,15 +442,11 @@ function createApp(opts = {}) {
 
   // What we know about a video: from the local index when it is a preferred-channel
   // video, otherwise from YouTube (oEmbed) and the title filter.
-  async function describe(videoId, { force = false } = {}) {
+  async function describe(videoId) {
     const e = catalog.byId(videoId);
     if (e) return { videoId, title: e.title, channel: e.channel, preferred: true, genre: e.genre, artist: e.artist, artistKey: e.artistKey };
     const meta = await fetchMeta(videoId);
     const preferred = catalog.isPreferredAuthor(meta.author);
-    if (!preferred && !force) {
-      const v = classify(meta, { trusted: cfg.trusted });
-      if (v.result === 'reject') throw new UserError(v.reason, 422);
-    }
     let genre = null;
     try { genre = (await lookupGenre(videoId)) || null; } catch { /* genre is optional */ }
     const p = parseSongTitle(meta.title);
@@ -514,8 +507,7 @@ function createApp(opts = {}) {
         continue;
       }
       const v = classify(m, { trusted: cfg.trusted });
-      if (v.result === 'reject') continue;
-      scored.push({ m, rank: v.result === 'accept' ? 0 : 1 });
+      scored.push({ m, rank: v.result === 'accept' ? 0 : v.result === 'review' ? 1 : 2 });
     }
     scored.sort((a, b) => a.rank - b.rank);
     for (const { m } of scored) otherList.push({ videoId: m.videoId, title: m.title, channel: m.author, preferred: false });
@@ -587,7 +579,7 @@ function createApp(opts = {}) {
 
     const info = await describe(videoId);
     if (!info.preferred && req.body.confirmNonPreferred !== true) {
-      throw new UserError("This isn't a preferred video and probably doesn't have the singer singing the song. Add it anyway?", 409, { needsConfirm: true });
+      throw new UserError("This is not a preferred video. It may be just an instrumental and probably doesn't have the singer singing the song. Do you still want to add it to the queue?", 409, { needsConfirm: true });
     }
     checkLimits(singer, videoId);   // re-check after the network wait in case of a double tap
 
@@ -781,7 +773,7 @@ function createApp(opts = {}) {
     if (state.queue.some((q) => q.videoId === videoId) || state.nowPlaying?.videoId === videoId) {
       throw new UserError('That song is already in the queue.', 409);
     }
-    const info = await describe(videoId, { force: true });
+    const info = await describe(videoId);
     if (target === 'roulette') {
       if (!cfg.roulette) throw new UserError('Roulette is turned off.', 403);
       state.roulettePick = makePick({ ...info, nonPreferred: !info.preferred });

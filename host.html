@@ -11,13 +11,13 @@
   /* The whole page is the TV picture: video centred at 16:9, filling the screen. */
   .stage { position: fixed; inset: 0; display: grid; place-items: center; background: #000; }
   .screen { position: relative; width: min(100vw, calc(100dvh * 16 / 9)); aspect-ratio: 16 / 9; background: #000; display: flex; }
-  .vwrap { position: relative; flex: 1 1 0; min-width: 0; display: grid; place-items: center; }
+  .vwrap { position: relative; flex: 1 1 0; min-width: 0; display: grid; place-items: center; margin-right: 15%; }
   .vbox { position: relative; width: 100%; aspect-ratio: 16 / 9; max-height: 100%; }
   #player, #player iframe { position: absolute; inset: 0; width: 100%; height: 100%; }
 
   /* narrow strip on the far right: current singer + next 3, so the video stays as big as possible */
-  .side { flex: none; width: 15%; min-width: 150px; display: flex; flex-direction: column; gap: 1.1vmin; padding: 1.2vmin; overflow: hidden;
-    background: #120a1f; border-left: 1px solid var(--line); font-size: clamp(9px, 1.7vmin, 20px); }
+  .side { position: absolute; top: 0; right: 0; bottom: 0; z-index: 6; transform: translateZ(0); width: 15%; display: flex; flex-direction: column; gap: 1.1vmin; padding: 1.2vmin; overflow: hidden;
+    background: #120a1f; border-left: 1px solid var(--line); font-size: clamp(8px, 1.7vmin, 20px); }
   .s-label { font-size: .75em; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
   .s-now { padding: 1vmin; border: 1px solid var(--pink); border-radius: 1vmin; display: grid; gap: .3vmin; }
   .s-now b { font-size: 1.15em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

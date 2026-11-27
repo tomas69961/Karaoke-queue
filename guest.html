@@ -44,6 +44,17 @@
   </section>
 
   <section class="card">
+    <div class="label">Up next</div>
+    <div id="list"></div>
+    <div id="empty" class="muted">Nothing queued yet. Be the first!</div>
+    <div class="dice-row hidden" id="diceRow">
+      <div class="label" style="margin-bottom:4px">🎲 Roulette pick</div>
+      <div class="song" id="diceSong" style="border-top:0;padding:4px 0"></div>
+      <div class="muted small">Claim it to sing it. It goes to the bottom of the queue, or plays next if nobody is waiting.</div>
+    </div>
+  </section>
+
+  <section class="card">
     <div class="field">
       <label for="name">Your name</label>
       <div class="clr"><input id="name" maxlength="24" placeholder="e.g. Chris" autocomplete="given-name"><button type="button" class="x hidden" data-for="name" aria-label="Clear">✕</button></div>
@@ -65,17 +76,6 @@
     <div class="muted small hint" id="hint"></div>
     <div id="msg" class="msg hidden" role="status"></div>
     <div id="results" style="margin-top:8px"></div>
-  </section>
-
-  <section class="card">
-    <div class="label">Up next</div>
-    <div id="list"></div>
-    <div id="empty" class="muted">Nothing queued yet. Be the first!</div>
-    <div class="dice-row hidden" id="diceRow">
-      <div class="label" style="margin-bottom:4px">🎲 Roulette pick</div>
-      <div class="song" id="diceSong" style="border-top:0;padding:4px 0"></div>
-      <div class="muted small">Claim it to sing it. It goes to the bottom of the queue, or plays next if nobody is waiting.</div>
-    </div>
   </section>
 
   <section class="card hidden" id="recCard">
@@ -288,7 +288,7 @@ $('#pvAdd').onclick = () => { const r = pvItem; closePreview(); if (r) tryAdd(r)
 // ---------- adding ----------
 function needName() {
   const singer = $('#name').value.trim();
-  if (!singer) { $('#name').focus(); window.scrollTo({ top: 0, behavior: 'smooth' }); say('bad', 'Please enter your name first.'); }
+  if (!singer) { $('#name').scrollIntoView({ behavior: 'smooth', block: 'center' }); $('#name').focus(); say('bad', 'Please enter your name first.'); }
   return singer;
 }
 

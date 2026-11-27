@@ -17,7 +17,7 @@
 
   /* narrow strip on the far right: current singer + next 3, so the video stays as big as possible */
   .side { position: absolute; top: 0; right: 0; bottom: 0; z-index: 6; transform: translateZ(0); width: 15%; display: flex; flex-direction: column; gap: 1.1vmin; padding: 1.2vmin; overflow: hidden;
-    background: #120a1f; border-left: 1px solid var(--line); font-size: clamp(8px, 1.7vmin, 20px); }
+    background: #120a1f; border-left: 1px solid var(--line); font-size: clamp(8px, 1.55vmin, 20px); }
   .s-label { font-size: .75em; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
   .s-now { padding: 1vmin; border: 1px solid var(--pink); border-radius: 1vmin; display: grid; gap: .3vmin; }
   .s-now b { font-size: 1.15em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -232,10 +232,10 @@ async function api(path, method = 'POST', body) {
 const act = (path, method, body) => api(path, method, body).then((r) => { if (r && r.error) toast(r.error); return r; }).catch(() => ({}));
 
 // The song ended: the server starts a 10-second break (with the "up next" message).
-function next() {
+function next(completed) {
   if (advancing) return;
   advancing = true;
-  api('/api/host/next', 'POST', { expectId: currentId }).catch(() => {}).finally(() => { advancing = false; retryAt = Date.now() + 2000; });
+  api('/api/host/next', 'POST', { expectId: currentId, completed: completed === true }).catch(() => {}).finally(() => { advancing = false; retryAt = Date.now() + 2000; });
 }
 function startNow(force) {
   if (advancing) return;
@@ -273,7 +273,7 @@ window.onYouTubeIframeAPIReady = () => {
       onReady: () => { ready = true; sync(); },
       onStateChange: (e) => {
         if (e.data === YT.PlayerState.PLAYING) { clearTimeout(playTimer); $('#tapBox').classList.add('hidden'); }
-        if (e.data === YT.PlayerState.ENDED) next();
+        if (e.data === YT.PlayerState.ENDED) next(true);
       },
       onError: () => { toast('That video would not play here, skipping it.'); next(); },
     },
@@ -342,14 +342,14 @@ function tick() {
 }
 setInterval(tick, 250);
 
-// The queue as the room sees it on the TV: current singer + the next 3.
+// The queue as the room sees it on the TV: current singer + the next 5.
 function renderSide(st) {
   const np = st.nowPlaying;
   $('#sideSinger').textContent = np ? np.singer : '';
   $('#sideTitle').textContent = np ? np.title : '';
   const now = Date.now();
-  const rows = st.upcoming.slice(0, 3).map((s, i) => ({ s, n: i + 1 }));
-  if (rows.length < 3 && st.roulettePick && st.settings.roulette && st.settings.roulette.enabled) rows.push({ s: st.roulettePick, n: '🎲' });
+  const rows = st.upcoming.slice(0, 5).map((s, i) => ({ s, n: i + 1 }));
+  if (rows.length < 5 && st.roulettePick && st.settings.roulette && st.settings.roulette.enabled) rows.push({ s: st.roulettePick, n: '🎲' });
   for (const { s } of rows) if (!firstSeen.has(s.id)) firstSeen.set(s.id, sideInit ? now : 0);
   sideInit = true;
 
@@ -403,7 +403,7 @@ function render(st) {
 
   // one-line strip along the bottom of the TV picture
   const tk = $('#ticker');
-  const names = st.upcoming.slice(0, 3).map((s) => s.singer).join(', ');
+  const names = st.upcoming.slice(0, 5).map((s) => s.singer).join(', ');
   tk.textContent = np ? `🎤 ${np.singer} — ${np.title}${names ? '   ·   Next: ' + names : ''}` : '';
   tk.classList.toggle('hidden', !(started && np && !sideOn));
   renderSide(st);

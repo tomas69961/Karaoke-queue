@@ -71,7 +71,7 @@ async function defaultFetchMeta(videoId) {
   }
   if (!r.ok) throw new UserError("Couldn't check that song right now. Please try again.", 502);
   const j = await r.json();
-  return { title: j.title || '', author: j.author_name || '' };
+  return { title: j.title || '', author: j.author_name || '', authorUrl: j.author_url || '' };
 }
 
 function decodeEntities(s) {
@@ -202,6 +202,7 @@ function createApp(opts = {}) {
     genreCounts: {},
     stats: {},          // videoId -> how often it was requested (all time) for the Top 25
     requests: [],       // recent requests (for the 48-hour taste profile)
+    learned: [],        // channels promoted to preferred: [{ title, handle }]
     rouletteLog: [],    // roulette songs already played (18-hour no-repeat)
     roulettePick: null, // the roulette song waiting to be claimed or played
     paused: false,
@@ -218,6 +219,7 @@ function createApp(opts = {}) {
       state.stats = s.stats || {};
       state.requests = s.requests || [];
       state.rouletteLog = s.rouletteLog || [];
+      state.learned = s.learned || [];
       if (s.nowPlaying) state.queue.unshift({ ...s.nowPlaying, status: 'queued', playNext: true });
     } catch {
       /* first run */
@@ -231,8 +233,8 @@ function createApp(opts = {}) {
     saveTimer = setTimeout(() => {
       try {
         fs.mkdirSync(path.dirname(cfg.dataFile), { recursive: true });
-        const { queue, nowPlaying, history, genreCounts, stats, requests, rouletteLog } = state;
-        fs.writeFileSync(cfg.dataFile, JSON.stringify({ queue, nowPlaying, history, genreCounts, stats, requests, rouletteLog }));
+        const { queue, nowPlaying, history, genreCounts, stats, requests, rouletteLog, learned } = state;
+        fs.writeFileSync(cfg.dataFile, JSON.stringify({ queue, nowPlaying, history, genreCounts, stats, requests, rouletteLog, learned }));
       } catch (e) {
         console.error('Could not save queue:', e.message);
       }
@@ -350,7 +352,7 @@ function createApp(opts = {}) {
     id: crypto.randomBytes(5).toString('hex'),
     token: crypto.randomBytes(12).toString('hex'),
     videoId: info.videoId, title: String(info.title).slice(0, 200), channel: String(info.channel).slice(0, 100),
-    artist: info.artist || '', artistKey: info.artistKey || '', genre: info.genre || null,
+    artist: info.artist || '', artistKey: info.artistKey || '', genre: info.genre || null, authorUrl: info.authorUrl || '',
     status: 'queued', addedAt: now(), playNext: false, nonPreferred: !!info.nonPreferred, singer: '', ...extra,
   });
   const makePick = (e) => newItem(e, { roulette: true, open: true });
@@ -450,7 +452,7 @@ function createApp(opts = {}) {
     let genre = null;
     try { genre = (await lookupGenre(videoId)) || null; } catch { /* genre is optional */ }
     const p = parseSongTitle(meta.title);
-    return { videoId, title: meta.title, channel: meta.author, preferred, genre, artist: p.artist, artistKey: p.artistKey };
+    return { videoId, title: meta.title, channel: meta.author, authorUrl: meta.authorUrl || '', preferred, genre, artist: p.artist, artistKey: p.artistKey };
   }
 
   // ---------- search ----------
@@ -671,6 +673,17 @@ function createApp(opts = {}) {
   app.post('/api/host/next', requireHost, wrap(async (req, res) => {
     // expectId stops two host tabs (or a double event) from skipping two songs.
     if ('expectId' in req.body && (state.nowPlaying?.id ?? null) !== req.body.expectId) return res.json(view());
+    const np = state.nowPlaying;
+    if (np && np.nonPreferred && req.body.completed === true && req.body.skip !== true) {
+      // a guest's non-preferred song played all the way through: its channel is preferred from now on
+      const m = String(np.authorUrl || '').match(/youtube\.com\/@([^/?#]+)/i);
+      const entry = { title: np.channel, handle: m ? decodeURIComponent(m[1]) : '' };
+      if (!state.learned.some((l) => l.title.toLowerCase() === entry.title.toLowerCase())) {
+        state.learned.push(entry);
+        await catalog.learn(entry);
+        if (entry.handle && !cfg.channels.some((c) => c.replace(/^@/, '').toLowerCase() === entry.handle.toLowerCase())) cfg.channels.push('@' + entry.handle);
+      }
+    }
     if (state.nowPlaying) {
       state.history.unshift(state.nowPlaying);
       state.history = state.history.slice(0, 30);
@@ -810,6 +823,7 @@ function createApp(opts = {}) {
     res.status(500).json({ error: 'Something went wrong. Please try again.' });
   });
 
+  for (const l of state.learned) void catalog.learn(l);   // restore channels learned earlier
   if (opts.autoload !== false && loader) {
     catalog.ensure().then(() => ensureRoulettePick()).catch(() => {});
     const refresh = setInterval(() => { catalog.ensure(); }, 30 * 60 * 1000);

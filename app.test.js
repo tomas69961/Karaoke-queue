@@ -202,6 +202,26 @@ test('add: preferred goes straight in; non-preferred needs a yes; rejects blocke
   } finally { server.close(); }
 });
 
+test('a non-preferred song that plays all the way through makes its channel preferred', async () => {
+  const { server, call, add, host } = await boot();
+  try {
+    await add('Ben', 'nnnnnnnnnn1', { confirmNonPreferred: true });
+    await add('Cy', 'nnnnnnnnnn3', { confirmNonPreferred: true });
+    await call('/api/host/start', { method: 'POST', headers: host, body: {} });
+    // skipped: nothing changes
+    let r = await call('/api/host/next', { method: 'POST', headers: host, body: { skip: true } });
+    let s = await call('/api/search?song=zzzz%20nothing');
+    assert.equal(s.json.results.find((x) => x.videoId === 'nnnnnnnnnn3').preferred, false);
+    await call('/api/host/start', { method: 'POST', headers: host, body: { force: true } });
+    // played to the end
+    await call('/api/host/next', { method: 'POST', headers: host, body: { completed: true } });
+    s = await call('/api/search?song=zzzz%20nothing');
+    assert.equal(s.json.results.find((x) => x.videoId === 'nnnnnnnnnn1').preferred, true, 'same channel (OtherCo) is now preferred');
+    r = await add('Dee', 'nnnnnnnnnn3');
+    assert.equal(r.status, 201, 'no popup needed any more');
+  } finally { server.close(); }
+});
+
 test('guests can remove only their own song; host can remove any', async () => {
   const { server, call, add, host } = await boot();
   try {

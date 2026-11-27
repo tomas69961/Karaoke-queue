@@ -130,8 +130,9 @@ function createCatalog({ handles = [], loadChannel = null, ttlMs = 12 * 3600 * 1
     return loadedAt ? Promise.resolve() : loading;
   }
 
+  const learned = new Set();   // channels promoted to preferred after a guest's song played all the way through
   const names = () => {
-    const s = new Set();
+    const s = new Set(learned);
     for (const h of handles) s.add(bare(h).toLowerCase());
     for (const i of infos) { s.add(String(i.title).toLowerCase()); s.add(String(i.handle).toLowerCase()); }
     return s;
@@ -187,7 +188,27 @@ function createCatalog({ handles = [], loadChannel = null, ttlMs = 12 * 3600 * 1
     return { results: out.slice(0, limit).map((x) => ({ ...x.e, score: x.score })), handleMatched };
   }
 
+  // Makes a channel preferred. If its handle is known, its uploads are indexed too.
+  async function learn({ title = '', handle = '' } = {}) {
+    if (title) learned.add(String(title).trim().toLowerCase());
+    const h = bare(handle);
+    if (h) {
+      learned.add(h.toLowerCase());
+      if (loadChannel && !handles.some((x) => bare(x).toLowerCase() === h.toLowerCase())) {
+        handles.push('@' + h);
+        try {
+          const c = await loadChannel('@' + h);
+          const info = { id: c.id, title: c.title, handle: bare(c.handle || h) };
+          loaded.set('@' + h, { info, entries: c.videos.map((v) => makeEntry(v, info)) });
+          learned.add(String(c.title).toLowerCase());
+          rebuild();
+        } catch (e) { if (log) log(`Could not index ${h}: ${e.message}`); }
+      }
+    }
+  }
+
   return {
+    learn,
     ensure,
     search,
     entries: () => flat,
